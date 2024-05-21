@@ -109,7 +109,14 @@ We then ran FastQC again on trimmed reads using the same code as above. To conca
 
 You can also access a PDF file containing tables summarizing the total number of raw reads and the total number of reads after trimming, clicking [here](https://github.com/pedrofvilanova/smut_microbiome/blob/main/smut_microbiome_rnaseq_reads_report.pdf)
 
-## Transcript alignment:
+
+### Joyce Dellavechia Ferreti - Start at may/2024
+#Pipeline 
+![Untitled Diagram drawio (2)](https://github.com/JoyceFerreti/Sugarcane_microbiome_smut/assets/163196002/36cb5efb-1cea-49fd-8aa4-5f76edfaf2f0)
+
+
+
+## :dna: Transcript alignment:
 
 
 The analyses were done in the following order:
