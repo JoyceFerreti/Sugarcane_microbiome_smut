@@ -126,6 +126,17 @@ The analyses were done in the following order:
 mapped in :open_file_folder: ```../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_mapped```
 unmapped in :open_file_folder: ```../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_unmapped```
 
+### Installing packages through the mamba environment
+Packages versions : 
+HiSat2: 2.2.1; 
+SAMtools: 1.20; 
+featureCounts (parte do pacote subread): 2.0.6; 
+Kraken2: 2.1.3
+
+```
+mamba install -c bioconda hisat2 samtools subread kraken2
+```
+
 ### 1step: Reference Index
 
 ```
