@@ -108,3 +108,12 @@ We then ran FastQC again on trimmed reads using the same code as above. To conca
 3. The output of FastQC on trimmed reads can be accessed: ```/media/hdzin/pedro/NGS726/data/cutadapt/FastQC_trimmed/```
 
 You can also access a PDF file containing tables summarizing the total number of raw reads and the total number of reads after trimming, clicking [here](https://github.com/pedrofvilanova/smut_microbiome/blob/main/smut_microbiome_rnaseq_reads_report.pdf)
+
+## Transcript alignment:
+
+
+The analyses were done in the following order:
+1. Get cutadapt reads and map them to R570_poliploid_version_2024/SofficinarumxspontaneumR570_771_v2.0.fa. reference genome located in  :open_file_folder: ```joycef@nioo0003.nioo.int:/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/References/R570_poliploid_version_2024```
+
+2. Get unmapped reads to R570_poliploid_version_2024 genome and salve as Contaminants  :open_file_folder: *****
+
