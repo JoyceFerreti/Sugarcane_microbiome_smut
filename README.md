@@ -126,3 +126,90 @@ The analyses were done in the following order:
 mapped in :open_file_folder: ```../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_mapped```
 unmapped in :open_file_folder: ```../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_unmapped```
 
+### 1step: Reference Index
+
+```
+#!/bin/bash
+
+if [ ! -d ../../Data/References/R570_poliploid_version_2024/hisat2_index ]
+then
+    mkdir -p ../../Data/References/R570_poliploid_version_2024/hisat2_index
+    hisat2-build -p 10 ../../Data/References/R570_poliploid_version_2024/SofficinarumxspontaneumR570_771_v2.0.fa ../../Data/References/R570_poliploid_version_2024/hisat2_index/SofficinarumxspontaneumR570_771_v2.0
+fi
+
+```
+
+### 2step: Reference Alignment
+
+```
+#!/bin/bash
+
+# Verifica se o diretório de mapeamento já existe, se não, cria
+if [ ! -d ../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN ]; then
+  mkdir -p ../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN
+fi
+
+# Cria diretórios para leituras mapeadas e não mapeadas
+mkdir -p ../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_mapped
+mkdir -p ../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_unmapped
+
+# Define o diretório de trabalho
+cd ../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN
+
+# Caminho para o índice do HISAT2
+index=../References/R570_poliploid_version_2024/hisat2_index/SofficinarumxspontaneumR570_771_v2.0
+
+# Nome do arquivo de controle
+checkpoint_File="./processed_files.txt"
+
+# Verifica se o arquivo de controle existe, se não existir, cria
+if [ ! -e "$checkpoint_File" ]; then
+  touch "$checkpoint_File"
+fi
+
+# Função para lidar com o sinal de interrupção (Ctrl+C)
+function cleanup {
+  echo "Script interrupted. Exiting..."
+  exit 1
+}
+
+# Captura o sinal de interrupção (Ctrl+C)
+trap cleanup SIGINT
+
+for PE1 in ../Cutadapt/*PE1.fastq.gz; do
+  PE2="${PE1/PE1/PE2}"
+  BASE_PE1=$(basename "$PE1")
+
+  # Verifica se o par já foi processado antes de executar o HISAT2
+  if ! grep -q "$BASE_PE1" "$checkpoint_File"; then
+    echo "Analyzing $PE1 and $PE2"
+
+    hisat2 -p 10 --rg-id "$PE1" --rg SM:"$PE1" \
+    --summary-file ./summary_"$BASE_PE1"_cutadapt.txt \
+    -x "$index" -1 "$PE1" -2 "$PE2" \
+    -S ./"$BASE_PE1"_cutadapt.sam
+
+    samtools sort -@ 10 ./"$BASE_PE1"_cutadapt.sam > \
+    ./"$BASE_PE1"_cutadapt.bam
+    # Devido ao tamanho de cromossomo maior que 512Mb, não é possível criar o bam index do tipo .bai; usamos então o parâmetro "-c" para criar o index do tipo .csi
+    samtools index -@ 10 -c ./"$BASE_PE1"_cutadapt.bam
+    rm ./"$BASE_PE1"_cutadapt.sam
+
+    # Verifica se os arquivos .bam estão vazios ou não
+    if [ -s ./"$BASE_PE1"_cutadapt.bam ]; then
+      # Move os arquivos para o diretório de leituras mapeadas
+      mv ./"$BASE_PE1"_cutadapt.bam ./R570_mapped/
+      mv ./"$BASE_PE1"_cutadapt.bam.csi ./R570_mapped/
+    else
+      # Move os arquivos para o diretório de leituras não mapeadas
+      mv ./"$BASE_PE1"_cutadapt.bam ./R570_unmapped/
+      mv ./"$BASE_PE1"_cutadapt.bam.csi ./R570_unmapped/
+    fi
+
+    # Adiciona o nome do arquivo ao arquivo de controle
+    echo "$BASE_PE1" >> "$checkpoint_File"
+  else
+    echo "Pair $BASE_PE1 has been processed previously. Ignoring."
+  fi
+done
+```
