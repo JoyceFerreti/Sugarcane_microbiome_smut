@@ -239,4 +239,4 @@ done
 
 Separation of Mapped and Unmapped Reads:
 After the HISAT2 classification step, the script filters the mapped and unmapped reads using samtools view.
-The mapped reads are moved to the directory R570_mapped, while the unmapped reads are moved to the directory R570_unmapped.
+The mapped reads are moved to the directory R570_mapped_filtered, while the unmapped reads are moved to the directory R570_unmapped.
