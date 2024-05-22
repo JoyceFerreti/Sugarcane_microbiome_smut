@@ -161,8 +161,10 @@ if [ ! -d ../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN ]; then
 fi
 
 # Cria diretórios para leituras mapeadas e não mapeadas
-mkdir -p ../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_mapped
-mkdir -p ../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_unmapped
+mapped_dir="../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_mapped"
+unmapped_dir="../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_unmapped"
+mkdir -p "$mapped_dir"
+mkdir -p "$unmapped_dir"
 
 # Define o diretório de trabalho
 cd ../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN
@@ -206,16 +208,11 @@ for PE1 in ../Cutadapt/*PE1.fastq.gz; do
     samtools index -@ 10 -c ./"$BASE_PE1"_cutadapt.bam
     rm ./"$BASE_PE1"_cutadapt.sam
 
-    # Verifica se os arquivos .bam estão vazios ou não
-    if [ -s ./"$BASE_PE1"_cutadapt.bam ]; then
-      # Move os arquivos para o diretório de leituras mapeadas
-      mv ./"$BASE_PE1"_cutadapt.bam ./R570_mapped/
-      mv ./"$BASE_PE1"_cutadapt.bam.csi ./R570_mapped/
-    else
-      # Move os arquivos para o diretório de leituras não mapeadas
-      mv ./"$BASE_PE1"_cutadapt.bam ./R570_unmapped/
-      mv ./"$BASE_PE1"_cutadapt.bam.csi ./R570_unmapped/
-    fi
+    # Filtra as leituras mapeadas e as move para o diretório de leituras mapeadas
+    samtools view --threads 10 -b -F 4 ./"$BASE_PE1"_cutadapt.bam > "$mapped_dir/${BASE_PE1}_mapped.bam"
+
+    # Filtra as leituras não mapeadas e as move para o diretório de leituras não mapeadas
+    samtools view --threads 10 -b -f 4 ./"$BASE_PE1"_cutadapt.bam > "$unmapped_dir/${BASE_PE1}_unmapped.bam"
 
     # Adiciona o nome do arquivo ao arquivo de controle
     echo "$BASE_PE1" >> "$checkpoint_File"
@@ -223,4 +220,9 @@ for PE1 in ../Cutadapt/*PE1.fastq.gz; do
     echo "Pair $BASE_PE1 has been processed previously. Ignoring."
   fi
 done
+
 ```
+
+Separation of Mapped and Unmapped Reads:
+After the HISAT2 classification step, the script filters the mapped and unmapped reads using samtools view.
+The mapped reads are moved to the directory R570_mapped, while the unmapped reads are moved to the directory R570_unmapped.
