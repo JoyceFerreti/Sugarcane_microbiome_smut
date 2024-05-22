@@ -123,7 +123,7 @@ The analyses were done in the following order:
 1. Get cutadapt reads and map them to R570_poliploid_version_2024/SofficinarumxspontaneumR570_771_v2.0.fa. reference genome located in  :open_file_folder: ```joycef@nioo0003.nioo.int:/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/References/R570_poliploid_version_2024```
 
 2. Get mapped and unmapped reads to R570_poliploid_version_2024 genome and salve as
-mapped in :open_file_folder: ```../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_mapped```
+mapped in :open_file_folder: ```../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_mapped_filtered```
 unmapped in :open_file_folder: ```../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_unmapped```
 
 ### Installing packages through the mamba environment
