@@ -137,6 +137,20 @@ Packages versions :
 mamba install -c bioconda hisat2 samtools subread kraken2
 ```
 
+### Executing the Script with Screen ###
+```
+screen -S hisat2_alignment
+```
+Within the screen session, run the script:
+```
+screen -S hisat2_alignment
+```
+Detach from the screen session: Press Ctrl + A followed by D.
+Reattach to the screen session (if needed):
+```
+screen -r hisat2_alignment
+```
+
 ### 1step: Reference Index
 
 ```
