@@ -259,3 +259,41 @@ mkdir -p "$DBNAME"
 kraken2-build --standard --db "$DBNAME" --threads 15
 
 ```
+### 2 Step. Kraken2 Classification
+
+#!/bin/bash
+
+```
+# Diretório de trabalho e do banco de dados
+work_dir="/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data"
+database_dir="/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Software/Kraken2/Kraken2_database"
+
+# Mudança para o diretório de trabalho
+cd "$work_dir"
+
+# Criação de diretórios para saída
+mkdir -p kraken2
+mkdir -p kraken2/classified
+mkdir -p kraken2/unclassified
+
+# Loop para processar arquivos trimados
+for input in ../Cutadapt/*PE1.fastq.gz; do
+    input2=$(echo "$input" | sed "s/PE1/PE2/g")
+    output1=$(basename "$input" | sed 's/_PE1.fastq.gz//')
+
+    kraken2 --use-names --threads 20 --gzip-compressed \
+        --db "$database_dir" \
+        --report "./kraken2/${output1}_report.txt" \
+        --report-zero-counts \
+        --sort-taxa \
+        --use-mpa-style \
+        --confidence \
+        --paired "$input" "$input2" \
+        --classified-out "./kraken2/classified/${output1}_contamination#.fastq" \
+        --unclassified-out "./kraken2/unclassified/${output1}_filtered#.fastq" \
+        > "./kraken2/${output1}_kraken.txt"
+
+    gzip "./kraken2/classified/${output1}_contamination*.fastq"
+    gzip "./kraken2/unclassified/${output1}_filtered*.fastq"
+done
+```
