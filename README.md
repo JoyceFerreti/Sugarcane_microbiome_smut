@@ -144,9 +144,10 @@ screen -S hisat2_alignment
 ```
 Within the screen session, run the script:
 ```
-screen -S hisat2_alignment
+bash _scriptX
 ```
 Detach from the screen session: Press Ctrl + A followed by D.
+
 Reattach to the screen session (if needed):
 ```
 screen -r hisat2_alignment
