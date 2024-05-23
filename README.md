@@ -153,7 +153,7 @@ Reattach to the screen session (if needed):
 screen -r hisat2_alignment
 ```
 
-### 1step: Reference Index
+### 1 Step: Reference Index
 
 ```
 #!/bin/bash
@@ -166,7 +166,7 @@ fi
 
 ```
 
-### 2step: Reference Alignment
+### 2 Step: Reference Alignment
 
 ```
 #!/bin/bash
