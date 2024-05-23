@@ -241,7 +241,19 @@ Separation of Mapped and Unmapped Reads:
 After the HISAT2 classification step, the script filters the mapped and unmapped reads using samtools view.
 The mapped reads are moved to the directory R570_mapped_filtered, while the unmapped reads are moved to the directory R570_unmapped.
 
-## Unmapped anotation - Kraken2
-Kraken2 informations: https://github.com/DerrickWood/kraken/blob/master/docs/MANUAL.markdown
+## Kraken2 - Taxonomic Annotation
+Kraken2 informations: https://github.com/DerrickWood/kraken2/wiki/Manual
 
-### 1 Step. 
+### 1 Step. Standard Kraken 2 Database
+
+```
+# Definir o caminho e nome do banco de dados
+DBNAME="/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Software/Kraken2/Kraken2_database"
+
+# Criar o diretório do banco de dados
+mkdir -p "$DBNAME"
+
+# Baixar e construir o banco de dados padrão do Kraken2
+kraken2-build --standard --db "$DBNAME" --threads 15
+
+```
