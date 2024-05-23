@@ -112,7 +112,8 @@ You can also access a PDF file containing tables summarizing the total number of
 
 ### Joyce Dellavechia Ferreti - Start at may/2024
 # Pipeline 
-![Untitled Diagram drawio (2)](https://github.com/JoyceFerreti/Sugarcane_microbiome_smut/assets/163196002/36cb5efb-1cea-49fd-8aa4-5f76edfaf2f0)
+![Untitled Diagram drawio (3)](https://github.com/JoyceFerreti/Sugarcane_microbiome_smut/assets/163196002/2ecac72a-1dab-4497-be74-ffa22f46f295)
+
 
 
 
