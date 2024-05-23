@@ -261,9 +261,8 @@ kraken2-build --standard --db "$DBNAME" --threads 15
 ```
 ### 2 Step. Kraken2 Classification
 
-#!/bin/bash
-
 ```
+#!/bin/bash
 # Diretório de trabalho e do banco de dados
 work_dir="/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data"
 database_dir="/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Software/Kraken2/Kraken2_database"
