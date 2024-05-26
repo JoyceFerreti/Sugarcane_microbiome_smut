@@ -276,23 +276,25 @@ mkdir -p kraken2/classified
 mkdir -p kraken2/unclassified
 
 # Loop para processar arquivos trimados
-for input in ../Cutadapt/*PE1.fastq.gz; do
+for input in *PE1.fastq.gz; do
     input2=$(echo "$input" | sed "s/PE1/PE2/g")
-    output1=$(basename "$input" | sed 's/_PE1.fastq.gz//')
+    output1=$(echo "$input" | sed 's/_PE1.fastq.gz//g')
+
 
     kraken2 --use-names --threads 20 --gzip-compressed \
         --db "$database_dir" \
-        --report "./kraken2/${output1}_report.txt" \
+        --report ./kraken2/"${output1}"_report.txt \
+        --paired ./"$input" ./"$input2" \
         --report-zero-counts \
         --sort-taxa \
         --use-mpa-style \
         --confidence \
-        --paired "$input" "$input2" \
-        --classified-out "./kraken2/classified/${output1}_contamination#.fastq" \
-        --unclassified-out "./kraken2/unclassified/${output1}_filtered#.fastq" \
-        > "./kraken2/${output1}_kraken.txt"
+        --classified-out ./kraken2/classified/${output1}_contamination#.fastq \
+        --unclassified-out ./kraken2/unclassified/${output1}_filtered#.fastq \
+        > ./kraken2/${output1}_kraken.txt
 
-    gzip "./kraken2/classified/${output1}_contamination*.fastq"
-    gzip "./kraken2/unclassified/${output1}_filtered*.fastq"
+
+    gzip ./kraken2/classified/${output1}_contamination*.fastq \
+    gzip ./kraken2/unclassified/${output1}_filtered*.fastq \
 done
 ```
