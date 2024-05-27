@@ -243,6 +243,61 @@ Separation of Mapped and Unmapped Reads:
 After the HISAT2 classification step, the script filters the mapped and unmapped reads using samtools view.
 The mapped reads are moved to the directory R570_mapped_filtered, while the unmapped reads are moved to the directory R570_unmapped.
 
+## Reads Counts:
+**featureCounts** (parte do pacote subread): **2.0.6**;
+
+### 1 Step: Convert reference annotation - gff3 to gft
+
+```                                                                  
+#!/bin/bash
+
+# Define os caminhos dos arquivos
+input_gff3="../../Data/References/R570_poliploid_version_2024/annotation/SofficinarumxspontaneumR570_771_v2.1.gene_exons.gff3.gz"
+output_gtf="../../Data/References/R570_poliploid_version_2024/annotation/SofficinarumxspontaneumR570_771_v2.1.gene_exons.gtf"
+
+# Verifica se o arquivo de entrada está compactado
+if [[ "$input_gff3" == *.gz ]]; then
+    echo "Descompactando $input_gff3..."
+    gunzip -c "$input_gff3" > "${input_gff3%.gz}"
+    input_gff3="${input_gff3%.gz}"
+fi
+
+# Converte o GFF3 para GTF
+gffread "$input_gff3" -T -o "$output_gtf"
+
+# Verifica se a conversão foi bem-sucedida
+if [ $? -eq 0 ]; then
+    echo "Conversion successful: $output_gtf"
+else
+    echo "Conversion failed."
+fi
+
+```
+
+### 2 Step: Reads Counts
+
+These options ensure that the script counts paired-end read pairs, includes multi-mapping reads, uses the gene_id for grouping, and processes the data efficiently with 20 threads.
+
+```
+#!/bin/bash
+
+# Verifica se o diretório de saída existe, caso contrário, cria
+if [ ! -d ../../Data/countsPairEnd_R570_genome_ShSHN ]; then
+    mkdir -p ../../Data/countsPairEnd_R570_genome_ShSHN
+fi
+
+# Muda para o diretório de saída
+cd ../../Data/countsPairEnd_R570_genome_ShSHN/
+
+# Executa o featureCounts com os parâmetros fornecidos
+featureCounts -s 0 -p --countReadPairs -T 20 -t exon -g gene_id -M \
+-a ../References/R570_poliploid_version_2024/annotation/SofficinarumxspontaneumR570_771_v2.1.gene_exons.gtf \
+-o ./Quantified_all_R570_genome_ShSHN_ref.tsv \
+$(ls ../Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_mapped_filtered/*.bam) \
+2> ./featureCounts_R570_genome_ShSHN_log.txt
+
+```
+
 ## Kraken2 - Taxonomic Annotation
 Kraken2 informations: https://github.com/DerrickWood/kraken2/wiki/Manual
 
