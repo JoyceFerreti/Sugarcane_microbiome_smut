@@ -112,20 +112,150 @@ You can also access a PDF file containing tables summarizing the total number of
 
 ### Joyce Dellavechia Ferreti - Start at may/2024
 # Pipeline 
-![Untitled Diagram drawio (3)](https://github.com/JoyceFerreti/Sugarcane_microbiome_smut/assets/163196002/2ecac72a-1dab-4497-be74-ffa22f46f295)
-
-
-
+!
 
 ## :dna: Transcript alignment:
+# FISHER SERVER -  BY PEDRO VILANOVA
+The analysis executed in this step are inside the folder :open_file_folder:  ```/media/hdzin/pedro/NGS726/data/cutadapt/rRNA_clean```
 
+>Inside this folder you will find the statistics for the rRNA cleaning step and folders referring to the two sugarcane genotypes IACSP-5503 and IACSP-6007
 
 The analyses were done in the following order:
-1. Get cutadapt reads and map them to R570_poliploid_version_2024/SofficinarumxspontaneumR570_771_v2.0.fa. reference genome located in  :open_file_folder: ```joycef@nioo0003.nioo.int:/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/References/R570_poliploid_version_2024```
+1. Get rRNA cleaned reads and map them first to _Sporisorium scitamineum_ reference genome located in  :open_file_folder: ```/media/hdzin/pedro/NGS726/data/cutadapt/rRNA_clean/references/NCBI_Ssci_genome.fa```
+
+2. Get unmapped reads to _S. scitamineum_ genome (reads that are not fungus) and map them to COMPGG transcripts located in :open_file_folder: ```/media/hdzin/pedro/NGS726/data/cutadapt/rRNA_clean/references/comps_plus_GGs.fas.gz```
+
+3. Get unclassified reads that are not mapped neither to _S. scitamineum_ nor sugarcane COMPGG transcripts.
+
+The directory structures is as follows:
+
+```
+- rRNA_clean
+  - IACSP-5503
+    - clay
+      - control
+      - inoc
+    - sandy
+      - control
+      - inoc
+  - IACSP-6007
+    - clay
+      - control
+      - inoc
+    - sandy
+      - control
+      - inoc
+```
+   
+>Inside each one of the folders ```control``` or ```inoc``` there is a folder called ```clean_reads``` which contains ```.fastq``` trimmed and rRNA clean files of the respective treatment and condition.
+
+For transcript alignment, we used ```Hisat2 v.2.1.0```. First of all, we align trimmed and rRNA cleaned reads to Sporisorium scitamineum genome, no matter if the treatment is control or inoculated. We hope that mock-inoculated plants will not have any or a very small number (due to spurious alignments) of alignments to the fungus genome. After, aligning reads to the fungus genome, we're gonna retrieve the reads that were *unmapped*, because if they do not map to the fungus, they belong to some other organisms, likely sugarcane. 
+
+Mapping to _S. scitamineum_ will always be stored in a folder called ```1_mapping2_ssci``` for each one of the treatments and conditions. Inside a folder like that you will find three codes: 
+
+1. ```1_run_mapping.sh```: responsible for running the map of .fastq reads to S. scitamineum genome
+2. ```2_get_unmapped.sh```: responsible for retrieving only unmapped reads, which are likely anything other than the fungus.
+3. ```3_get_mapped.sh```: we use this code to actually separate the reads that belong to the fungus, which might be of interest later.
+
+Let's break down these codes!
+
+Above is the content of ```1_run_mapping.sh```:
+
+```
+#!/bin/bash
+
+ref=/media/hdzin/pedro/NGS726/data/cutadapt/rRNA_clean/references/NCBI_Ssci_genome.fa
+index=/media/hdzin/pedro/NGS726/data/cutadapt/rRNA_clean/references/NCBI_Ssci_genome.fa.index
+
+# Index reference genome
+#hisat2-build "$ref" "$index"
+
+# Map reads against genome
+for i in ../clean_reads/*PE1.fastq.gz
+do
+        file2=`echo "$i" | sed "s/PE1/PE2/g"`
+        rep=$(basename "$i" | sed -E "s/NGS726_([0-9]+).*/\1/g")
+
+        echo "Analyzing $i and $file2"
+
+
+        hisat2 -p 8 --rg-id IACSP-5503_clay_control --rg SM:IACSP-5503_clay_control_rep"$rep" \
+        --summary-file ./summary_IACSP-5503_clay_control_rep"$rep"_mapped2_ssci.txt \
+        -x "$index" -1 "$i" -2 "$file2" \
+        -S ./IACSP-5503_clay_control_rep"$rep"_mapped2_ssci.sam
+
+        # Map convert to bam and index mapping
+        samtools sort ./IACSP-5503_clay_control_rep"$rep"_mapped2_ssci.sam > ./IACSP-5503_clay_control_rep"$rep"_mapped2_ssci.bam
+        samtools index ./IACSP-5503_clay_control_rep"$rep"_mapped2_ssci.bam
+        rm ./IACSP-5503_clay_control_rep"$rep"_mapped2_ssci.sam
+
+done
+```
+
+The first lines of the code indicate where is my reference sequence to be mapped against, expressed in ```ref``` and also where the index is gonna be and how it is going to be called ```index```.
+Then, the first command of ```hisat2``` will actually build the index ```#hisat2-build "$ref" "$index"```
+Next, we're actually gonna map the reads against the fungus genome, as you can see I'm mapping all files inside ```clean_reads```, using both ```PE1``` and ```PE2``` reads.
+The final step uses ```samtools v. 1.10```to convert the result ```.sam``` files into ```.bam``` files. Then, we index the ```.bam``` files.
+
+Now, we have ```.bam``` files containing mapped and unmapped reads to S. scitamineum genome. We're now gonna get everything that has not been mapped to the fungus with ```2_get_unmapped.sh``` code:
+
+```
+#!/bin/bash
+
+mkdir -p ssci_free
+
+for i in ./*.bam
+do
+
+        # get only the unmapped reads - "4" indicates the paired end unmapped reads according to samtools
+        samtools view --threads 10 -b -f 4 "$i" > "$i"_unmapped.bam
+
+        # save fastq reads in separate R1 and R2 files
+        samtools fastq -@ 10 "$i"_unmapped.bam\
+        -1 ./ssci_free/"$i"_ssci_free_PE1.fastq.gz \
+        -2 ./ssci_free/"$i"_ssci_free_PE2.fastq.gz \
+        -0 /dev/null -s /dev/null -n
+
+        rm "$i"_unmapped.bam
+done
+```
+
+Firstly, we create a folder called ```ssci_free``` where reads free of the fungus transcripts will be stored. Then we'll use ```samtools view``` command to get the unmapped reads using the ```4``` flag, which indicates that we only want reads that are unmapped to our reference. After that, we need to convert the resulting ```.bam``` files into ```.fastq``` files again, and we use ```samtools fastq``` to do the conversion. 
+
+Now, we want to retrieve reads that actually mapped to the fungus genome, so we're gonna use ```3_get_mapped.sh```
+
+```
+#!/bin/bash
+
+mkdir -p mapped2_ssci
+
+for i in ./*.bam
+do
+
+        # get only the mapped reads - "2" indicates the paired end mapped reads according to samtools
+        samtools view --threads 10 -b -f 2 "$i" > "$i"_mapped.bam
+
+        # save fastq reads in separate R1 and R2 files
+        samtools fastq -@ 10 "$i"_mapped.bam\
+        -1 ./mapped2_ssci/"$i"_ssci_PE1.fastq.gz \
+        -2 ./mapped2_ssci/"$i"_ssci_PE2.fastq.gz \
+        -0 /dev/null -s /dev/null -n
+
+        rm "$i"_mapped.bam
+done
+```
+
+We create, this time, a folder called ```mapped2_ssci``` to actually store reads that mapped to the fungus, and we're going to repeat the same step as code 2, but instead, we're gonna use flag ```2``` to get the paired-end mapped reads.
+
+Now, inside the ```1_mapping2_ssci``` folder we're left with fungal reads in ```mapped2_ssci``` and unmapped reads that contain sugarcane reads of our interest. 
+
+
+## NIOO - SERVER - The analyses were done in the following order:
+1. Get "Ssci_free" reads (from fisher server - as describe before) and map them to R570_poliploid_version_2024/SofficinarumxspontaneumR570_771_v2.0.fa. reference genome located in  :open_file_folder: ```joycef@nioo0003.nioo.int:/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/References/R570_poliploid_version_2024```
 
 2. Get mapped and unmapped reads to R570_poliploid_version_2024 genome and salve as
-mapped in :open_file_folder: ```../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_mapped_filtered```
-unmapped in :open_file_folder: ```../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_unmapped```
+mapped in :open_file_folder: ```../Data/2Alignments_R570/R570_mapped```
+unmapped in :open_file_folder: ```../Data/2Alignments_R570/R570_unmapped```
 
 ### Installing packages through the mamba environment
 Packages versions : 
@@ -172,28 +302,28 @@ fi
 #!/bin/bash
 
 # Verifica se o diretório de mapeamento já existe, se não, cria
-if [ ! -d ../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN ]; then
-  mkdir -p ../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN
+if [ ! -d ../../Data/2Alignments_R570 ]; then
+  mkdir -p ../../Data/2Alignments_R570
 fi
 
 # Cria diretórios para leituras mapeadas e não mapeadas
-mapped_dir="../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_mapped"
-unmapped_dir="../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_unmapped"
+mapped_dir="../../Data/2Alignments_R570/R570_mapped"
+unmapped_dir="../../Data/2Alignments_R570/R570_unmapped"
 mkdir -p "$mapped_dir"
 mkdir -p "$unmapped_dir"
 
 # Define o diretório de trabalho
-cd ../../Data/Alignments_sugarcane_microbiome_R570_genome_ShSHN
+cd ../../Data/2Alignments_R570
 
 # Caminho para o índice do HISAT2
-index=../References/R570_poliploid_version_2024/hisat2_index/SofficinarumxspontaneumR570_771_v2.0
+index="../References/R570_poliploid_version_2024/hisat2_index/SofficinarumxspontaneumR570_771_v2.0"
 
 # Nome do arquivo de controle
-checkpoint_File="./processed_files.txt"
+checkpoint_file="./processed_files.txt"
 
 # Verifica se o arquivo de controle existe, se não existir, cria
-if [ ! -e "$checkpoint_File" ]; then
-  touch "$checkpoint_File"
+if [ ! -e "$checkpoint_file" ]; then
+  touch "$checkpoint_file"
 fi
 
 # Função para lidar com o sinal de interrupção (Ctrl+C)
@@ -205,35 +335,37 @@ function cleanup {
 # Captura o sinal de interrupção (Ctrl+C)
 trap cleanup SIGINT
 
-for PE1 in ../Cutadapt/*PE1.fastq.gz; do
+# Loop para processar arquivos
+for PE1 in /home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/rRNA_clean/Ssci_free/*PE1.fastq.gz; do
   PE2="${PE1/PE1/PE2}"
   BASE_PE1=$(basename "$PE1")
 
-  # Verifica se o par já foi processado antes de executar o HISAT2
+# Verifica se o par já foi processado antes de executar o HISAT2
   if ! grep -q "$BASE_PE1" "$checkpoint_File"; then
     echo "Analyzing $PE1 and $PE2"
 
-    hisat2 -p 10 --rg-id "$PE1" --rg SM:"$PE1" \
-    --summary-file ./summary_"$BASE_PE1"_cutadapt.txt \
+   hisat2 -p 20 --rg-id "$PE1" --rg SM:"$PE1" \
+    --summary-file ./summary_"$BASE_PE1"_Ssci_free.txt \
     -x "$index" -1 "$PE1" -2 "$PE2" \
-    -S ./"$BASE_PE1"_cutadapt.sam
+    -S ./"$BASE_PE1"_Ssci_free.sam
 
-    samtools sort -@ 10 ./"$BASE_PE1"_cutadapt.sam > \
-    ./"$BASE_PE1"_cutadapt.bam
-    # Devido ao tamanho de cromossomo maior que 512Mb, não é possível criar o bam index do tipo .bai; usamos então o parâmetro "-c" para criar o index do tipo .csi
-    samtools index -@ 10 -c ./"$BASE_PE1"_cutadapt.bam
-    rm ./"$BASE_PE1"_cutadapt.sam
+    # Ordena o arquivo SAM e converte para BAM
+    samtools sort -@ 20 ./"$BASE_PE1"_Ssci_free.sam > ./"$BASE_PE1"_Ssci_free.bam
 
-    # Filtra as leituras mapeadas e as move para o diretório de leituras mapeadas
-    samtools view --threads 10 -b -F 4 ./"$BASE_PE1"_cutadapt.bam > "$mapped_dir/${BASE_PE1}_mapped.bam"
+    # Devido ao tamanho de cromossomo maior que 512Mb, não é possível criar o bam index do tipo .bai; usamos então o parâmetro "-c"
+    samtools index -@ 20 -c ./"$BASE_PE1"_Ssci_free.bam
+    rm ./"$BASE_PE1"_Ssci_free.sam
+
+   # Filtra as leituras mapeadas e as move para o diretório de leituras mapeadas
+ samtools view --threads 20 -b -F 4 ./"$BASE_PE1"_Ssci_free.bam > "$mapped_dir/${BASE_PE1}_R570mapped.bam"
 
     # Filtra as leituras não mapeadas e as move para o diretório de leituras não mapeadas
-    samtools view --threads 10 -b -f 4 ./"$BASE_PE1"_cutadapt.bam > "$unmapped_dir/${BASE_PE1}_unmapped.bam"
+    samtools view --threads 20 -b -f 4 ./"$BASE_PE1"_Ssci_free.bam > "$unmapped_dir/${BASE_PE1}_R570unmapped.bam"
 
     # Adiciona o nome do arquivo ao arquivo de controle
-    echo "$BASE_PE1" >> "$checkpoint_File"
+    echo "$BASE_PE1" >> "$checkpoint_file"
   else
-    echo "Pair $BASE_PE1 has been processed previously. Ignoring."
+    echo "File $BASE_PE1 has been processed previously. Ignoring."
   fi
 done
 
@@ -241,7 +373,7 @@ done
 
 Separation of Mapped and Unmapped Reads:
 After the HISAT2 classification step, the script filters the mapped and unmapped reads using samtools view.
-The mapped reads are moved to the directory R570_mapped_filtered, while the unmapped reads are moved to the directory R570_unmapped.
+The mapped reads are moved to the directory R570_mapped, while the unmapped reads are moved to the directory R570_unmapped.
 
 ## Reads Counts:
 **featureCounts** (parte do pacote subread): **2.0.6**;
@@ -282,19 +414,20 @@ These options ensure that the script counts paired-end read pairs, includes mult
 #!/bin/bash
 
 # Verifica se o diretório de saída existe, caso contrário, cria
-if [ ! -d ../../Data/countsPairEnd_R570_genome_ShSHN ]; then
-    mkdir -p ../../Data/countsPairEnd_R570_genome_ShSHN
+if [ ! -d ../../Data/3featureCounts_R570__ShSHN ]; then
+    mkdir -p ../../Data/3featureCounts_R570__ShSHN
 fi
 
 # Muda para o diretório de saída
-cd ../../Data/countsPairEnd_R570_genome_ShSHN/
+cd ../../Data/3featureCounts_R570__ShSHN/
 
 # Executa o featureCounts com os parâmetros fornecidos
-featureCounts -s 0 -p --countReadPairs -T 20 -t exon -g gene_id -M \
--a ../References/R570_poliploid_version_2024/annotation/SofficinarumxspontaneumR570_771_v2.1.gene_exons.gtf \
+featureCounts -s 0 -p --countReadPairs -T 20 -t CDS -g gene_id -M \
+-a /home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/References/R570_poliploid_version_2024/annotation/SofficinarumxspontaneumR570_771_v2.1.gene_exons.gtf \
 -o ./Quantified_all_R570_genome_ShSHN_ref.tsv \
-$(ls ../Alignments_sugarcane_microbiome_R570_genome_ShSHN/R570_mapped_filtered/*.bam) \
+$(ls /home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/2Alignments_R570/R570_mapped/*.bam) \
 2> ./featureCounts_R570_genome_ShSHN_log.txt
+
 
 ```
 
