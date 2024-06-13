@@ -428,7 +428,7 @@ $(ls /home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/2Alignments_R570/R570_ma
 
 ```
 
-## Kraken2 - Taxonomic Annotation
+## Kraken2 - Contaminats Analysis: Taxonomic Annotation
 Kraken2 informations: https://github.com/DerrickWood/kraken2/wiki/Manual
 
 ### 1 Step. Standard Kraken 2 Database
