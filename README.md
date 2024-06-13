@@ -110,12 +110,9 @@ We then ran FastQC again on trimmed reads using the same code as above. To conca
 You can also access a PDF file containing tables summarizing the total number of raw reads and the total number of reads after trimming, clicking [here](https://github.com/pedrofvilanova/smut_microbiome/blob/main/smut_microbiome_rnaseq_reads_report.pdf)
 
 
-### Joyce Dellavechia Ferreti - Start at may/2024
-# Pipeline 
-!
 
 ## :dna: Transcript alignment:
-# FISHER SERVER -  BY PEDRO VILANOVA
+### FISHER SERVER -  BY PEDRO VILANOVA
 The analysis executed in this step are inside the folder :open_file_folder:  ```/media/hdzin/pedro/NGS726/data/cutadapt/rRNA_clean```
 
 >Inside this folder you will find the statistics for the rRNA cleaning step and folders referring to the two sugarcane genotypes IACSP-5503 and IACSP-6007
