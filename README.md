@@ -430,14 +430,15 @@ $(ls /home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/2Alignments_R570/R570_ma
 
 ## EdgeR - RStudio
 Until now, we have carried out all analyzes on the server. From now on we will work through RStudio for the following analyses.
-
+The script performs differential gene expression analysis using RNA-Seq data with the edgeR library. It includes steps to load and prepare the data, normalize the counts, perform statistical tests to identify differentially expressed genes, and export the results to CSV files.
 
 ```
 library(dplyr)
 library(edgeR)
 
-#Load count table
+#Load count table; Loads an RNA-Seq count table, using the Geneid column as a row identifier.
 count_table <- read.table("/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Cutadapt_alignment_input/EdgeR/Joyce_edgeR/Quantified_all_R570_genome_ShSHN_ref.tsv", header = TRUE, row.names = "Geneid")
+# Stores the length of genes and removes unnecessary columns from the count table.
 gene_length <- count_table[,5]
 names(gene_length) <- rownames(count_table)
 count_table <- count_table[, -(1:5)]
@@ -458,7 +459,7 @@ new_names <- sapply(colnames(count_table), function(column) {
 })
 colnames(count_table) <- new_names
 
-# Rename columns based on the mapping
+# Rename columns based on the mapping - Renames the count table columns using the provided name mapping.
 colnames(count_table) <- sapply(colnames(count_table), function(old_name) {
   if (old_name %in% names(mapping)) {
     return(mapping[old_name])
@@ -471,7 +472,8 @@ colnames(count_table) <- sapply(colnames(count_table), function(old_name) {
 count_table <- count_table %>%
   select(sort(colnames(count_table)))
 
-#### Para comparação par a par, selecionando apenas o inoculado e controle para a comparação
+## Data Filtering and Normalization
+### Para comparação par a par, selecionando apenas o inoculado e controle para a comparação
 comparison <- c("IACSP_5503_sandy_inoc", "IACSP_5503_sandy_control")
 # Select columns containing the base names
 count_table <- count_table %>%
