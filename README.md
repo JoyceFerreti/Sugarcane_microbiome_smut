@@ -428,7 +428,160 @@ $(ls /home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/2Alignments_R570/R570_ma
 
 ```
 
-## Kraken2 - Contaminats Analysis: Taxonomic Annotation
+## EdgeR - RStudio
+Until now, we have carried out all analyzes on the server. From now on we will work through RStudio for the following analyses.
+
+
+```
+library(dplyr)
+library(edgeR)
+
+#Load count table
+count_table <- read.table("/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Cutadapt_alignment_input/EdgeR/Joyce_edgeR/Quantified_all_R570_genome_ShSHN_ref.tsv", header = TRUE, row.names = "Geneid")
+gene_length <- count_table[,5]
+names(gene_length) <- rownames(count_table)
+count_table <- count_table[, -(1:5)]
+
+#Load correspondance file
+correspondence <- read.table("/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Cutadapt_alignment_input/EdgeR/Joyce_edgeR/samples.txt", header = FALSE)
+
+# Load correspondence table
+### This way its ensured that the names of the samples and sequencing filenames matches, and its not just a mistake regarding the column order
+colnames(correspondence) <- c("old_name", "new_name")
+
+# Create a mapping between old and new column names
+mapping <- setNames(correspondence$new_name, correspondence$old_name)
+
+# Process column names
+new_names <- sapply(colnames(count_table), function(column) {
+  sub(".*\\.([^_]+_\\d+_S\\d+_L\\d+)_cut_PE1\\.fastq\\.gz.*", "\\1", column)
+})
+colnames(count_table) <- new_names
+
+# Rename columns based on the mapping
+colnames(count_table) <- sapply(colnames(count_table), function(old_name) {
+  if (old_name %in% names(mapping)) {
+    return(mapping[old_name])
+  } else {
+    return(old_name)
+  }
+})
+
+# Sort columns
+count_table <- count_table %>%
+  select(sort(colnames(count_table)))
+
+#### Para comparação par a par, selecionando apenas o inoculado e controle para a comparação
+comparison <- c("IACSP_5503_sandy_inoc", "IACSP_5503_sandy_control")
+# Select columns containing the base names
+count_table <- count_table %>%
+  select(contains(comparison))
+
+
+# Repeat each base name three times for te strain object
+strain <- c("inoc", "inoc", "inoc", "control", "control", "control")
+sample_info <- data.frame(condition = factor(strain))
+rownames(sample_info) <- colnames(count_table)
+group <- factor(paste(strain))
+
+
+### Follow the EdgeR analysis
+library("edgeR")
+
+y <- DGEList(counts = count_table, group = group)
+cpms <- cpm(y)
+
+# chatGPT automatization expression filtering
+# filter if any samples triplicate has more than three cpms in the row sum
+filter_criteria <- function(row, step = 3) {
+  num_cols <- length(row)
+  indices <- seq(1, num_cols, by = step)
+  
+  any(sapply(indices, function(i) all(row[i:(i + step - 1)] >= 1)))
+}
+
+# Apply the function to check each gene.
+keep <- sapply(1:nrow(cpms), function(i) {
+  filter_criteria(cpms[i, ])
+})
+
+#keep <- rowSums(cpms > 1) >= 3 ### Filter to be considered expressed.
+y <- y[keep, , keep.lib.sizes = FALSE]
+y <- calcNormFactors(y)
+
+# MDS is only based on the top 500 genes... maybe using more it can look really different
+plotMDS(y, col = c("blue", "blue", "blue",
+                   "red", "red", "red"))
+
+### Experimental Design ###
+design <- model.matrix(~ 0 + group, data = y$samples)
+colnames(design) <- levels(y$samples$group)
+y <- estimateDisp(y, design, robust = TRUE)
+plotBCV(y)
+y$design
+
+### Export the table with normalized counts (cpm_tmm)
+filename <- "IACSP_5503_sandy_inoc-control.csv"
+cpms_with_gene_id <- cbind(gene_id = rownames(cpm(y)), cpm(y))
+write.table(file=filename, cpms_with_gene_id, sep='\t', row.names=FALSE)
+
+### Até aqui, temos apenas os count normalizados (cpm) sem atribuição de diferencialmente expressos
+
+
+### Aplicar teste para a expressão diferencial
+### Likelihood Ratio Test (LRT) for Differential Expression Testing ###
+fit <- glmFit(y, design, robust = TRUE)
+# We can change the contrast to be tested
+my.contrast <- makeContrasts("inoc - control", levels = design)
+lrt <- glmLRT(fit, contrast = my.contrast)
+topTags(lrt)
+#### With FDR
+DE <- decideTests(lrt, adjust.method = "BH", p.value = 0.05, lfc = 1)
+summary(DE)
+
+# ### Without FDR
+# DE <- decideTestsDGE(lrt, adjust.method = "none", p.value = 0.05)
+# summary(DE)
+# #plotSmear(lrt)
+
+DE_tags <- rownames(y)[as.logical(DE)]
+#MAplot
+plotSmear(lrt, de.tags=DE_tags, cex = 0.3)
+abline(h=c(-1, 1), col="blue")
+
+### Export table with genes considered expressed (undergo filtering by minimum CPM in a certain number of samples)
+
+### there must be a better way to export the tables!
+
+# Apply the topTags() function to obtain the results.
+top_tags <- topTags(lrt, n = (nrow(y$counts) + 1))
+# Add the gene IDs as the first column.
+results_with_gene_id <- cbind(gene_id = rownames(top_tags$table), top_tags$table)
+# Export the results to a CSV file.
+filename <- "Expressed_IACSP-5503_inoc-control.csv"
+write.table(results_with_gene_id, file = filename, sep = '\t', row.names = FALSE) #maybe just set to TRUE, and don't need to cbind the gene_names
+
+
+## Export the table with the DEGs (Differentially Expressed Genes).
+threshold <- 0.05
+### column 6:FDR, column 5:Pvalue
+DEGs <- results_with_gene_id[results_with_gene_id[, 6] < threshold, ]
+# Set a cutoff value for the absolute LogFC (Logarithm of the Fold Change).
+logFC_threshold <- 1
+# Calculate the absolute value of the LogFC (Logarithm of the Fold Change).
+DEGs$absLogFC <- abs(DEGs[, 2])
+# Filter the DEGs based on the absolute value of the LogFC (Logarithm of the Fold Change).
+DEGs_LogFC <- DEGs[DEGs$absLogFC >= logFC_threshold, ]
+# Remove the temporary column 'absLogFC'.
+DEGs_LogFC <- DEGs_LogFC[, -ncol(DEGs_LogFC)]
+
+filename <- "DEGs_IACSP-5503_inoc-control.csv"
+write.table(DEGs_LogFC, file = filename, row.names=FALSE, sep = "\t")
+
+
+```
+
+## Kraken2 - Contaminats Analysis: Taxonomic Annotation (This part is not been using anymore)
 Kraken2 informations: https://github.com/DerrickWood/kraken2/wiki/Manual
 
 ### 1 Step. Standard Kraken 2 Database
