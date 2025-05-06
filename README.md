@@ -3,7 +3,7 @@
 This repository will be used to describe, in detail, the data processing and results related to the _Sporisorium scitamineum_ microbiome project. The experiment consists of two varieties of sugar cane in low soils
 and high fertility. The seedlings were planted in December 2022 at Usina Iracema, in São Martinho (SP), and the plants were  kept in the field for seven months. Experiments were arranged in random blocks with six replicates.
 Each experimental plot consists of four rows measuring four meters in length and planting spacing of 0.5 m, totaling 32 plants per plot. As varieties chosen are IACSP01-5503 (adapted to low fertility soils and
-resistant to _S. scitamineum_) and IACSP-6007 (not adapted to low fertility soils and resistant to _S. scitamineum_).
+resistant to _S. scitamineum_) and IACSP-6007 (not adapted to low fertility soils and with intermediate-resistance to _S. scitamineum_).
 
 ## :package: Raw data storage: Where is our data located?
 
@@ -583,60 +583,4 @@ write.table(DEGs_LogFC, file = filename, row.names=FALSE, sep = "\t")
 
 ```
 
-## Kraken2 - Contaminats Analysis: Taxonomic Annotation (This part is not been using anymore)
-Kraken2 informations: https://github.com/DerrickWood/kraken2/wiki/Manual
 
-### 1 Step. Standard Kraken 2 Database
-
-```
-# Definir o caminho e nome do banco de dados
-DBNAME="/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Software/Kraken2/Kraken2_database"
-
-# Criar o diretório do banco de dados
-mkdir -p "$DBNAME"
-
-# Baixar e construir o banco de dados padrão do Kraken2
-kraken2-build --standard --db "$DBNAME" --threads 15
-
-```
-### 2 Step. Kraken2 Classification
-
-```
-#!/bin/bash
-
-# Diretório de trabalho e do banco de dados
-work_dir="/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data"
-database_dir="/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Software/Kraken2/Kraken2_database"
-input_dir="/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Cutadapt"
-
-# Mudança para o diretório de trabalho
-cd "$work_dir"
-
-# Criação de diretórios para saída
-mkdir -p kraken2
-mkdir -p kraken2/classified
-mkdir -p kraken2/unclassified
-
-# Loop para processar arquivos trimados
-for input in "$input_dir"/*PE1.fastq.gz; do
-    input2=$(echo "$input" | sed "s/PE1/PE2/g")
-    output1=$(basename "$input" | sed 's/_PE1.fastq.gz//g')
-
-    kraken2 --use-names --threads 20 --gzip-compressed \
-        --db "$database_dir" \
-        --report ./kraken2/"${output1}"_report.txt \
-        --paired "$input" "$input2" \
-        --report-zero-counts \
-        --use-mpa-style \
-        --classified-out ./kraken2/classified/"${output1}"_contamination#.fastq \
-        --unclassified-out ./kraken2/unclassified/"${output1}"_filtered#.fastq \
-        > ./kraken2/"${output1}"_kraken.txt
-
-    # Compacta os arquivos classificados e não classificados
-    gzip ./kraken2/classified/"${output1}"_contamination_1.fastq
-    gzip ./kraken2/classified/"${output1}"_contamination_2.fastq
-    gzip ./kraken2/unclassified/"${output1}"_filtered_1.fastq
-    gzip ./kraken2/unclassified/"${output1}"_filtered_2.fastq
-done
-
-```
