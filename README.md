@@ -297,46 +297,46 @@ fi
 ```
 #!/bin/bash
 
-# Verifica se o diretório de mapeamento já existe, se não, cria
+#Verifica se o diretório de mapeamento já existe, se não, cria
 if [ ! -d ../../Data/2Alignments_R570 ]; then
   mkdir -p ../../Data/2Alignments_R570
 fi
 
-# Cria diretórios para leituras mapeadas e não mapeadas
+#Cria diretórios para leituras mapeadas e não mapeadas
 mapped_dir="../../Data/2Alignments_R570/R570_mapped"
 unmapped_dir="../../Data/2Alignments_R570/R570_unmapped"
 mkdir -p "$mapped_dir"
 mkdir -p "$unmapped_dir"
 
-# Define o diretório de trabalho
+#Define o diretório de trabalho
 cd ../../Data/2Alignments_R570
 
-# Caminho para o índice do HISAT2
+#Caminho para o índice do HISAT2
 index="../References/R570_poliploid_version_2024/hisat2_index/SofficinarumxspontaneumR570_771_v2.0"
 
-# Nome do arquivo de controle
+#Nome do arquivo de controle
 checkpoint_file="./processed_files.txt"
 
-# Verifica se o arquivo de controle existe, se não existir, cria
+#Verifica se o arquivo de controle existe, se não existir, cria
 if [ ! -e "$checkpoint_file" ]; then
   touch "$checkpoint_file"
 fi
 
-# Função para lidar com o sinal de interrupção (Ctrl+C)
+#Função para lidar com o sinal de interrupção (Ctrl+C)
 function cleanup {
   echo "Script interrupted. Exiting..."
   exit 1
 }
 
-# Captura o sinal de interrupção (Ctrl+C)
+#Captura o sinal de interrupção (Ctrl+C)
 trap cleanup SIGINT
 
-# Loop para processar arquivos
+#Loop para processar arquivos
 for PE1 in /home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/rRNA_clean/Ssci_free/*PE1.fastq.gz; do
   PE2="${PE1/PE1/PE2}"
   BASE_PE1=$(basename "$PE1")
 
-# Verifica se o par já foi processado antes de executar o HISAT2
+#Verifica se o par já foi processado antes de executar o HISAT2
   if ! grep -q "$BASE_PE1" "$checkpoint_File"; then
     echo "Analyzing $PE1 and $PE2"
 
@@ -345,20 +345,20 @@ for PE1 in /home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/rRNA_clean/Ssci_fr
     -x "$index" -1 "$PE1" -2 "$PE2" \
     -S ./"$BASE_PE1"_Ssci_free.sam
 
-    # Ordena o arquivo SAM e converte para BAM
+    #Ordena o arquivo SAM e converte para BAM
     samtools sort -@ 20 ./"$BASE_PE1"_Ssci_free.sam > ./"$BASE_PE1"_Ssci_free.bam
 
-    # Devido ao tamanho de cromossomo maior que 512Mb, não é possível criar o bam index do tipo .bai; usamos então o parâmetro "-c"
+    #Devido ao tamanho de cromossomo maior que 512Mb, não é possível criar o bam index do tipo .bai; usamos então o parâmetro "-c"
     samtools index -@ 20 -c ./"$BASE_PE1"_Ssci_free.bam
     rm ./"$BASE_PE1"_Ssci_free.sam
 
-   # Filtra as leituras mapeadas e as move para o diretório de leituras mapeadas
+   #Filtra as leituras mapeadas e as move para o diretório de leituras mapeadas
  samtools view --threads 20 -b -F 4 ./"$BASE_PE1"_Ssci_free.bam > "$mapped_dir/${BASE_PE1}_R570mapped.bam"
 
-    # Filtra as leituras não mapeadas e as move para o diretório de leituras não mapeadas
+    #Filtra as leituras não mapeadas e as move para o diretório de leituras não mapeadas
     samtools view --threads 20 -b -f 4 ./"$BASE_PE1"_Ssci_free.bam > "$unmapped_dir/${BASE_PE1}_R570unmapped.bam"
 
-    # Adiciona o nome do arquivo ao arquivo de controle
+    #Adiciona o nome do arquivo ao arquivo de controle
     echo "$BASE_PE1" >> "$checkpoint_file"
   else
     echo "File $BASE_PE1 has been processed previously. Ignoring."
@@ -379,21 +379,21 @@ The mapped reads are moved to the directory R570_mapped, while the unmapped read
 ```                                                                  
 #!/bin/bash
 
-# Define os caminhos dos arquivos
+#Define os caminhos dos arquivos
 input_gff3="../../Data/References/R570_poliploid_version_2024/annotation/SofficinarumxspontaneumR570_771_v2.1.gene_exons.gff3.gz"
 output_gtf="../../Data/References/R570_poliploid_version_2024/annotation/SofficinarumxspontaneumR570_771_v2.1.gene_exons.gtf"
 
-# Verifica se o arquivo de entrada está compactado
+#Verifica se o arquivo de entrada está compactado
 if [[ "$input_gff3" == *.gz ]]; then
     echo "Descompactando $input_gff3..."
     gunzip -c "$input_gff3" > "${input_gff3%.gz}"
     input_gff3="${input_gff3%.gz}"
 fi
 
-# Converte o GFF3 para GTF
+#Converte o GFF3 para GTF
 gffread "$input_gff3" -T -o "$output_gtf"
 
-# Verifica se a conversão foi bem-sucedida
+#Verifica se a conversão foi bem-sucedida
 if [ $? -eq 0 ]; then
     echo "Conversion successful: $output_gtf"
 else
@@ -409,15 +409,15 @@ These options ensure that the script counts paired-end read pairs, includes mult
 ```
 #!/bin/bash
 
-# Verifica se o diretório de saída existe, caso contrário, cria
+#Verifica se o diretório de saída existe, caso contrário, cria
 if [ ! -d ../../Data/3featureCounts_R570__ShSHN ]; then
     mkdir -p ../../Data/3featureCounts_R570__ShSHN
 fi
 
-# Muda para o diretório de saída
+#Muda para o diretório de saída
 cd ../../Data/3featureCounts_R570__ShSHN/
 
-# Executa o featureCounts com os parâmetros fornecidos
+#Executa o featureCounts com os parâmetros fornecidos
 featureCounts -s 0 -p --countReadPairs -T 20 -t CDS -g gene_id -M \
 -a /home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/References/R570_poliploid_version_2024/annotation/SofficinarumxspontaneumR570_771_v2.1.gene_exons.gtf \
 -o ./Quantified_all_R570_genome_ShSHN_ref.tsv \
@@ -437,7 +437,7 @@ library(edgeR)
 
 #Load count table; Loads an RNA-Seq count table, using the Geneid column as a row identifier.
 count_table <- read.table("/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Cutadapt_alignment_input/EdgeR/Joyce_edgeR/Quantified_all_R570_genome_ShSHN_ref.tsv", header = TRUE, row.names = "Geneid")
-# Stores the length of genes and removes unnecessary columns from the count table.
+#Stores the length of genes and removes unnecessary columns from the count table.
 gene_length <- count_table[,5]
 names(gene_length) <- rownames(count_table)
 count_table <- count_table[, -(1:5)]
@@ -445,20 +445,20 @@ count_table <- count_table[, -(1:5)]
 #Load correspondance file
 correspondence <- read.table("/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Cutadapt_alignment_input/EdgeR/Joyce_edgeR/samples.txt", header = FALSE)
 
-# Load correspondence table
-### This way its ensured that the names of the samples and sequencing filenames matches, and its not just a mistake regarding the column order
+#Load correspondence table
+###This way its ensured that the names of the samples and sequencing filenames matches, and its not just a mistake regarding the column order
 colnames(correspondence) <- c("old_name", "new_name")
 
-# Create a mapping between old and new column names
+#Create a mapping between old and new column names
 mapping <- setNames(correspondence$new_name, correspondence$old_name)
 
-# Process column names
+#Process column names
 new_names <- sapply(colnames(count_table), function(column) {
   sub(".*\\.([^_]+_\\d+_S\\d+_L\\d+)_cut_PE1\\.fastq\\.gz.*", "\\1", column)
 })
 colnames(count_table) <- new_names
 
-# Rename columns based on the mapping - Renames the count table columns using the provided name mapping.
+#Rename columns based on the mapping - Renames the count table columns using the provided name mapping.
 colnames(count_table) <- sapply(colnames(count_table), function(old_name) {
   if (old_name %in% names(mapping)) {
     return(mapping[old_name])
@@ -467,19 +467,19 @@ colnames(count_table) <- sapply(colnames(count_table), function(old_name) {
   }
 })
 
-# Sort columns
+#Sort columns
 count_table <- count_table %>%
   select(sort(colnames(count_table)))
 
 ## Data Filtering and Normalization
 ### Para comparação par a par, selecionando apenas o inoculado e controle para a comparação
 comparison <- c("IACSP_5503_sandy_inoc", "IACSP_5503_sandy_control")
-# Select columns containing the base names
+#Select columns containing the base names
 count_table <- count_table %>%
   select(contains(comparison))
 
 
-# Repeat each base name three times for te strain object
+#Repeat each base name three times for te strain object
 strain <- c("inoc", "inoc", "inoc", "control", "control", "control")
 sample_info <- data.frame(condition = factor(strain))
 rownames(sample_info) <- colnames(count_table)
@@ -492,8 +492,8 @@ library("edgeR")
 y <- DGEList(counts = count_table, group = group)
 cpms <- cpm(y)
 
-# chatGPT automatization expression filtering
-# filter if any samples triplicate has more than three cpms in the row sum
+#chatGPT automatization expression filtering
+#filter if any samples triplicate has more than three cpms in the row sum
 filter_criteria <- function(row, step = 3) {
   num_cols <- length(row)
   indices <- seq(1, num_cols, by = step)
@@ -501,7 +501,7 @@ filter_criteria <- function(row, step = 3) {
   any(sapply(indices, function(i) all(row[i:(i + step - 1)] >= 1)))
 }
 
-# Apply the function to check each gene.
+#Apply the function to check each gene.
 keep <- sapply(1:nrow(cpms), function(i) {
   filter_criteria(cpms[i, ])
 })
@@ -510,7 +510,7 @@ keep <- sapply(1:nrow(cpms), function(i) {
 y <- y[keep, , keep.lib.sizes = FALSE]
 y <- calcNormFactors(y)
 
-# MDS is only based on the top 500 genes... maybe using more it can look really different
+#MDS is only based on the top 500 genes... maybe using more it can look really different
 plotMDS(y, col = c("blue", "blue", "blue",
                    "red", "red", "red"))
 
@@ -532,18 +532,13 @@ write.table(file=filename, cpms_with_gene_id, sep='\t', row.names=FALSE)
 ### Aplicar teste para a expressão diferencial
 ### Likelihood Ratio Test (LRT) for Differential Expression Testing ###
 fit <- glmFit(y, design, robust = TRUE)
-# We can change the contrast to be tested
+#We can change the contrast to be tested
 my.contrast <- makeContrasts("inoc - control", levels = design)
 lrt <- glmLRT(fit, contrast = my.contrast)
 topTags(lrt)
 #### With FDR
 DE <- decideTests(lrt, adjust.method = "BH", p.value = 0.05, lfc = 1)
 summary(DE)
-
-# ### Without FDR
-# DE <- decideTestsDGE(lrt, adjust.method = "none", p.value = 0.05)
-# summary(DE)
-# #plotSmear(lrt)
 
 DE_tags <- rownames(y)[as.logical(DE)]
 #MAplot
@@ -554,26 +549,26 @@ abline(h=c(-1, 1), col="blue")
 
 ### there must be a better way to export the tables!
 
-# Apply the topTags() function to obtain the results.
+#Apply the topTags() function to obtain the results.
 top_tags <- topTags(lrt, n = (nrow(y$counts) + 1))
-# Add the gene IDs as the first column.
+#Add the gene IDs as the first column.
 results_with_gene_id <- cbind(gene_id = rownames(top_tags$table), top_tags$table)
-# Export the results to a CSV file.
+#Export the results to a CSV file.
 filename <- "Expressed_IACSP-5503_inoc-control.csv"
 write.table(results_with_gene_id, file = filename, sep = '\t', row.names = FALSE) #maybe just set to TRUE, and don't need to cbind the gene_names
 
 
-## Export the table with the DEGs (Differentially Expressed Genes).
+#Export the table with the DEGs (Differentially Expressed Genes).
 threshold <- 0.05
-### column 6:FDR, column 5:Pvalue
+#column 6:FDR, column 5:Pvalue
 DEGs <- results_with_gene_id[results_with_gene_id[, 6] < threshold, ]
-# Set a cutoff value for the absolute LogFC (Logarithm of the Fold Change).
+#Set a cutoff value for the absolute LogFC (Logarithm of the Fold Change).
 logFC_threshold <- 1
-# Calculate the absolute value of the LogFC (Logarithm of the Fold Change).
+#Calculate the absolute value of the LogFC (Logarithm of the Fold Change).
 DEGs$absLogFC <- abs(DEGs[, 2])
-# Filter the DEGs based on the absolute value of the LogFC (Logarithm of the Fold Change).
+#Filter the DEGs based on the absolute value of the LogFC (Logarithm of the Fold Change).
 DEGs_LogFC <- DEGs[DEGs$absLogFC >= logFC_threshold, ]
-# Remove the temporary column 'absLogFC'.
+#Remove the temporary column 'absLogFC'.
 DEGs_LogFC <- DEGs_LogFC[, -ncol(DEGs_LogFC)]
 
 filename <- "DEGs_IACSP-5503_inoc-control.csv"
@@ -581,5 +576,633 @@ write.table(DEGs_LogFC, file = filename, row.names=FALSE, sep = "\t")
 
 
 ```
+## FOR GO TERMS ANALYSIS - WITH TOP2GO
+# Load packages
+library("tidyr")
+library("dplyr")
+library("stringr")
+
+#seting working directory
+setwd("working/directory/path")
+
+
+############################# Preparing Gene2GO file ##############################
+
+#Reading the annotation file from Blast2GO containing the gene IDs and GO terms
+annot2 <- read.csv("annotation file/path/", header = T, sep = '\t')
+annot2$SeqName <- sub("\\.1\\.p$", "", annot2$SeqName) 
+
+#Selecting only gene name and correspondent GO term
+gene2GO <- annot2[,c(3,10)]
+colnames(gene2GO) <- c("Gene","GO")
+head(gene2GO)
+
+#Removing genes that doesn't contain a GO term
+gene2GO <- gene2GO %>% filter(!is.na(GO) & GO != "")
+head(gene2GO, 10)
+
+#Separating the GO term one per row
+long_gene2GO <- separate_rows(gene2GO, GO, sep = ";")
+head(long_gene2GO, 10)
+
+#remove white spaces
+long_gene2GO[] <- lapply(long_gene2GO, str_trim)
+head(long_gene2GO, 10)
+
+#remove P: F: C: .1.p
+long_gene2GO$GO <- gsub("P:", "", long_gene2GO$GO)
+long_gene2GO$GO <- gsub("F:", "", long_gene2GO$GO)
+long_gene2GO$GO <- gsub("C:", "", long_gene2GO$GO)
+long_gene2GO$Gene <- sub("\\.1\\.p$", "", long_gene2GO$Gene) 
+head(long_gene2GO, 10)
+
+#Generating a list with each Gene containing a list of GO terms
+gene2GO <- tapply(long_gene2GO$GO, long_gene2GO$Gene, function(x)x)
+head(gene2GO, 10)
+
+
+## Prepating DEGs and TopGO analysis
+
+############################# Load packages##################################
+
+library("topGO")  
+library("tidyr")
+library("dplyr")
+library("ggplot2")
+library("pheatmap")
+library("RColorBrewer")
+library("svDialogs")
+
+
+#seting working directory
+setwd("working/directory/path")
+
+
+############################## Choose input ################################
+# Choose data to analyse
+# data name
+name = 'DEGs_IACSP-6007_sandy_inoc-control'
+
+#Load csv to be analysed
+DESeq2_results <- read.csv(paste0(name,".csv"), sep = "\t")
+
+############################# Preparing DEGs ################################
+
+head(DESeq2_results, 10)
+
+
+#Removing the suffix .v2.1 from the first column gene_id
+DESeq2_results$gene_id <- sub("\\.v2\\.1$", "", DESeq2_results$gene_id)
+head(DESeq2_results, 10)
+
+#separete in down and downregulated
+DESeq2_results_6007_sandy_inoc_control <- DESeq2_results[order(DESeq2_results$logFC),]
+DESeq2_results_up = filter(DESeq2_results, logFC > 0)
+DESeq2_results_down = filter(DESeq2_results, logFC < 0)
+
+
+################################## UP ########################################
+
+#making geneList file
+up_a = DESeq2_results_up %>% dplyr::select(1, 5)
+names(up_a)[1] <- "SeqName"
+head(up_a)
+
+gene_list_making = annot2[3:3]
+head(gene_list_making)
+
+gene_list_making2 = full_join(up_a,gene_list_making, by = "SeqName")
+
+up_a = gene_list_making2
+up_a = up_a %>% replace(is.na(.), 1)
+head(up_a)
+
+#order
+up_a <- up_a[order(up_a$PValue),]
+
+#Creating the gene universe list containing the gene name and value 1 if significative or 0 if not
+pcutoff <- 0.05 # cutoff for defining significant genes
+tmp <- ifelse(up_a$PValue < pcutoff, 1, 0)
+
+geneList <- tmp
+head(geneList)
+
+names(geneList) <- up_a$SeqName
+head(geneList)
+
+#verify the number of 0 and 1 (0 = not DEGs; 1 = DEGs)
+table(geneList)
+
+#Saving result to a csv file
+write.csv(DESeq2_results_up, "DEGs_SANDY_5503-6007_CONTROL_up.csv", row.names = T)
+
+
+########################## topGO analyses UP ################################
+
+
+#Generating the topGO object for the Biological Process category
+GOdata_up_6007_sandy <- new("topGOdata",
+                            ontology = "BP",
+                            description = "topGO",
+                            allGenes = geneList,
+                            geneSelectionFun = function(x)(x == 1),
+                            annot = annFUN.gene2GO, 
+                            gene2GO = gene2GO_bianca2)
+
+
+#Running the topGO test weight01 fisher
+resultFisher_up_w <- runTest(GOdata_up_6007_sandy, algorithm = "weight01", statistic = "fisher")
+
+
+allRes_up <- GenTable(GOdata_up_6007_sandy, p.value = resultFisher_up_w,
+                  orderBy = "weight01Fisher", topNodes = length(resultFisher_up_w@score), numChar = 120)
+
+
+#Saving result to a csv file
+write.csv(allRes, paste0("topGO_enrichment_",name,"-up_unfiltered",".csv"), row.names = F)
+
+
+############################# DOWN ##########################################
+#making geneList file
+down_a = DESeq2_results_down %>% dplyr::select(1, 5)
+names(down_a)[1] <- "SeqName"
+head(down_a)
+
+gene_list_making = annot2[3:3]
+head(gene_list_making)
+
+gene_list_making2 = full_join(down_a,gene_list_making, by = "SeqName")
+head(gene_list_making2)
+
+down_a = gene_list_making2
+down_a = down_a %>% replace(is.na(.), 1)
+
+#order
+down_a <- down_a[order(down_a$PValue),]
+
+#Creating the gene universe list containing the gene name and value 1 if significative or 0 if not
+pcutoff <- 0.05 # cutoff for defining significant genes
+tmp <- ifelse(down_a$PValue < pcutoff, 1, 0)
+
+geneList <- tmp
+head(geneList)
+
+names(geneList) <- down_a$SeqName
+head(geneList)
+
+#verify the number of 0 and 1 (0 = not DEGs; 1 = DEGs)
+table(tmp)
+table(geneList)
+
+
+#Saving result to a csv file
+write.csv(DESeq2_results_down, "DEGs_SANDY_5503-6007_CONTROL_down.csv", row.names = T)
+
+
+############################# topGO analyses DOWN #####################################
+
+
+#Generating the topGO object for the Biological Process category
+GOdata_down_6007_sandy <- new("topGOdata",
+                              ontology = "BP",
+                              description = "topGO",
+                              allGenes = geneList,
+                              geneSelectionFun = function(x)(x == 1),
+                              annot = annFUN.gene2GO, 
+                              gene2GO = gene2GO_bianca2)
+
+
+#Running the topGO test weight01 fisher
+resultFisher_down_w <- runTest(GOdata_down_6007_sandy, algorithm = "weight01", statistic = "fisher")
+
+
+allRes_down <- GenTable(GOdata_down_6007_sandy, p.value = resultFisher_down_w,
+                        topNodes = length(resultFisher_down_w@score), numChar = 120)
+
+#Saving result to a csv file
+write.csv(allRes_down, paste0("topGO_enrichment_",name,"-down_unfiltered",".csv"), row.names = F)
+
+
+## Bubble plot
+
+library(tidyverse)
+library(dplyr)
+library("viridis")      
+library("patchwork")
+
+#Load the TopGO enrichment results
+data = read.csv("topGO_enrichment_DEGs_IACSP-5503_clay_inoc-control-up_unfiltered.csv",header = TRUE, sep = ,)
+
+#################### Result visualization ########################
+
+
+#Selecting the term GOs to be shown in bubble plot.
+ggdata_up <- data[c(1,3,10,16,26,28,40,42,132,136,137,301,376),] #5503_clay_up
+
+ggdata_up
+
+colnames(ggdata_up)[6] <- "raw.p.value"
+ggdata_up
+
+#Aplicar a função à coluna
+ggdata_up$raw.p.value <- gsub('<', '', ggdata_up$raw.p.value) #remove the < character
+ggdata_up$raw.p.value <- as.numeric(as.character(ggdata_up$raw.p.value))
+ggdata_up$Term <- factor(ggdata_up$Term, levels = rev(ggdata_up$Term)) # fixes order
+
+#chart
+bubblue_plot1 = ggplot(ggdata_up,aes(x=-log10(raw.p.value), y=Term, size=Significant, color=-log10(raw.p.value))) +
+  geom_point(alpha=0.7) +
+  scale_size(range = c(2, 12), name="Number of genes") +
+  xlim(0,35) + #changes the X axis scale
+  scale_color_viridis(option = "D") +
+  ylab('') + xlab('Enrichment score') +
+  #labs(title = 'GO Biological processes - 6007 down regulated DEGs',
+  #subtitle = 'All terms ordered by Fisher p-value',
+  #caption = '') +
+  theme_bw(base_size = 12) +
+  theme(
+    legend.position = 'right',
+    legend.background = element_rect(),
+    plot.title = element_text(angle = 0, size = 12, face = 'bold', hjust = 0.9), # Define the appearance of the plot's main title
+    plot.subtitle = element_text(angle = 0, size = 7, face = 'bold', vjust = 1), # Define the appearance of the plot's subtitle
+    plot.caption = element_text(angle = 0, size = 6, face = 'bold', vjust = 1), # Define the appearance of the plot's caption
+    
+    axis.text.x = element_text(angle = 0, size = 10, face = 'bold', hjust = 1.10,colour = 'black'), # Define the appearance of the x-axis labels
+    axis.text.y = element_text(angle = 0, size = 10, face = 'bold', vjust = 0.5,colour = 'black'), # Define the appearance of the y-axis labels
+    #axis.title = element_text(size = 6, face = 'bold'), # General appearance for both x and y axis titles
+    axis.title.x = element_text(size = 10, face = 'bold'), # Appearance specifically for x-axis title
+    axis.title.y = element_text(size = 10, face = 'bold'), # Appearance specifically for y-axis title
+    axis.line = element_line(colour = 'black', linewidth = 0.2), # Define the appearance of the axis lines (black color)
+    axis.ticks=element_line(size=0.8),
+    
+    #Legend
+    #legend.key = element_blank(), # removes the border
+    legend.key.size = unit(0.5, "cm"), # Sets overall area/size of the legend
+    legend.text = element_text(size = 8, face = "bold"), # Text size
+    title = element_text(size = 10, face = "bold"))
+
+bubblue_plot1
+
+
+ggsave(filename = "gos_bubble.png", device = "png", plot = bubblue_plot1, width = 18, height = 18)
+
+## Heatmap plot
+library(tidyverse)
+library(dplyr)
+library("RColorBrewer")
+library(pheatmap)
+
+#Select GO term to build the Heatmap
+go_term = "GO:0006979"
+
+#Before building the heatmap it id needed to have all TopGO objects that will be analysed
+
+######################## recover GO genes 5503 clay #######################
+
+
+#Recover gene which has this go term from the TopGO object
+go_term_up <- genesInTerm(GOdata_up_5503_clay, whichGO=go_term)
+go_term_down <- genesInTerm(GOdata_down_5503_clay, whichGO=go_term)
+
+#Append UP and DOWN in one list
+if (length(go_term_up) == 1 && length(go_term_down) == 1) {
+  #Combine both lists if each has exactly one element
+  go_term_gene_list <- as.character(c(go_term_up[[1]], go_term_down[[1]]))
+} else if (length(go_term_up) == 1) {
+  #Use go_term_up if it has one element
+  go_term_gene_list <- as.character(go_term_up[[1]])
+} else if (length(go_term_down) == 1) {
+  #Use go_term_down if it has one element
+  go_term_gene_list <- as.character(go_term_down[[1]])
+} else if (length(go_term_up) == 0 && length(go_term_down) == 0) {
+  message <- sprintf("O termo %s não está na lista de termos GOs", go_term)
+  dlgMessage(message, "ok")
+}
+
+
+#Recover the logFC from each gene
+
+#load data
+name = 'DEGs_IACSP-5503_clay_inoc-control'
+DESeq2_results <- read.csv(
+  paste0(name,".csv"), sep = "\t")
+
+#Removing the suffix .v2.1 from the first column gene_id
+DESeq2_results$gene_id <- sub("\\.v2\\.1$", "", DESeq2_results$gene_id)
+
+DESeq2_results_5503_clay_inoc_control <- DESeq2_results[order(DESeq2_results$logFC),]
+
+go_term_gene_list_5503_clay <- DESeq2_results_5503_clay_inoc_control %>%
+  filter(gene_id %in% go_term_gene_list)
+
+
+######################## recover GO genes 5503 sandy #######################
+
+
+#Recover gene which has this go term from the TopGO object
+go_term_up_2 <- genesInTerm(GOdata_up_5503_sandy, whichGO=go_term)
+go_term_down_2 <- genesInTerm(GOdata_down_5503_sandy, whichGO=go_term)
+
+#Append UP and DOWN in one list
+if (length(go_term_up_2) == 1 && length(go_term_down_2) == 1) {
+  #Combine both lists if each has exactly one element
+  go_term_gene_list <- as.character(c(go_term_up_2[[1]], go_term_down_2[[1]]))
+} else if (length(go_term_up_2) == 1) {
+  #Use go_term_up if it has one element
+  go_term_gene_list <- as.character(go_term_up_2[[1]])
+} else if (length(go_term_down_2) == 1) {
+  #Use go_term_down if it has one element
+  go_term_gene_list <- as.character(go_term_down_2[[1]])
+} else if (length(go_term_up_2) == 0 && length(go_term_down_2) == 0) {
+  message <- sprintf("O termo %s não está na lista de termos GOs", go_term)
+  dlgMessage(message, "ok")
+}
+
+
+#Recover the logFC from each gene
+
+#load data
+name = 'DEGs_IACSP-5503_sandy_inoc-control'
+DESeq2_results <- read.csv(
+  paste0(name,".csv"), sep = "\t")
+
+#Removing the suffix .v2.1 from the first column gene_id
+DESeq2_results$gene_id <- sub("\\.v2\\.1$", "", DESeq2_results$gene_id)
+
+DESeq2_results_5503_sandy_inoc_control <- DESeq2_results[order(DESeq2_results$logFC),]
+
+go_term_gene_list_5503_sandy <- DESeq2_results_5503_sandy_inoc_control %>%
+  filter(gene_id %in% go_term_gene_list)
+
+######################## recover GO genes 6007 clay #######################
+
+
+#Recover gene which has this go term from the TopGO object
+go_term_up <- genesInTerm(GOdata_up_6007_clay, whichGO=go_term)
+go_term_down <- genesInTerm(GOdata_down_6007_clay, whichGO=go_term)
+
+#Append UP and DOWN in one list
+if (length(go_term_up) == 1 && length(go_term_down) == 1) {
+  #Combine both lists if each has exactly one element
+  go_term_gene_list <- as.character(c(go_term_up[[1]], go_term_down[[1]]))
+} else if (length(go_term_up) == 1) {
+  #Use go_term_up if it has one element
+  go_term_gene_list <- as.character(go_term_up[[1]])
+} else if (length(go_term_down) == 1) {
+  #Use go_term_down if it has one element
+  go_term_gene_list <- as.character(go_term_down[[1]])
+} else if (length(go_term_up) == 0 && length(go_term_down) == 0) {
+  message <- sprintf("O termo %s não está na lista de termos GOs", go_term)
+  dlgMessage(message, "ok")
+}
+
+
+#Recover the logFC from each gene
+
+#load data
+name = 'DEGs_IACSP-6007_clay_inoc-control'
+DESeq2_results <- read.csv(
+  paste0(name,".csv"), sep = "\t")
+
+#Removing the suffix .v2.1 from the first column gene_id
+DESeq2_results$gene_id <- sub("\\.v2\\.1$", "", DESeq2_results$gene_id)
+
+DESeq2_results_6007_clay_inoc_control <- DESeq2_results[order(DESeq2_results$logFC),]
+
+
+go_term_gene_list_6007_clay <- DESeq2_results_6007_clay_inoc_control %>%
+  filter(gene_id %in% go_term_gene_list)
+
+
+######################## recover GO genes 6007 sandy #######################
+
+
+#Recover gene which has this go term from the TopGO object
+go_term_up_2 <- genesInTerm(GOdata_up_6007_sandy, whichGO=go_term)
+go_term_down_2 <- genesInTerm(GOdata_down_6007_sandy, whichGO=go_term)
+
+#Append UP and DOWN in one list
+if (length(go_term_up_2) == 1 && length(go_term_down_2) == 1) {
+  #Combine both lists if each has exactly one element
+  go_term_gene_list <- as.character(c(go_term_up_2[[1]], go_term_down_2[[1]]))
+} else if (length(go_term_up_2) == 1) {
+  #Use go_term_up if it has one element
+  go_term_gene_list <- as.character(go_term_up_2[[1]])
+} else if (length(go_term_down_2) == 1) {
+  #Use go_term_down if it has one element
+  go_term_gene_list <- as.character(go_term_down_2[[1]])
+} else if (length(go_term_up_2) == 0 && length(go_term_down_2) == 0) {
+  message <- sprintf("O termo %s não está na lista de termos GOs", go_term)
+  dlgMessage(message, "ok")
+}
+
+
+#Recover the logFC from each gene
+
+#load data
+name = 'DEGs_IACSP-6007_sandy_inoc-control'
+DESeq2_results <- read.csv(
+  paste0(name,".csv"), sep = "\t")
+
+#Removing the suffix .v2.1 from the first column gene_id
+DESeq2_results$gene_id <- sub("\\.v2\\.1$", "", DESeq2_results$gene_id)
+
+DESeq2_results_6007_sandy_inoc_control <- DESeq2_results[order(DESeq2_results$logFC),]
+
+go_term_gene_list_6007_sandy <- DESeq2_results_6007_sandy_inoc_control %>%
+  filter(gene_id %in% go_term_gene_list)
+
+######################## Building the heatmap matrix #####################################
+
+go_term_gene_list_merge = rbind(go_term_gene_list_5503_clay, 
+                                go_term_gene_list_5503_sandy, 
+                                go_term_gene_list_6007_clay, 
+                                go_term_gene_list_6007_sandy)
+
+go_term_gene_list_unique = unique(go_term_gene_list_merge$gene_id)
+
+
+
+#Build a matrix to storage the logFC
+go_matrix = matrix(NA, nrow = length(unique(go_term_gene_list_merge$gene_id)), ncol = 4,
+                   dimnames = list(unique(go_term_gene_list_merge$gene_id), c("5503_clay", "5503_sandy",
+                                                                              "6007_clay", "6007_sandy")))
+
+#FIll the matrix with the logFC valeus
+go_matrix[go_term_gene_list_5503_clay$gene_id, "5503_clay"] = (go_term_gene_list_5503_clay$logFC)
+go_matrix[go_term_gene_list_5503_sandy$gene_id, "5503_sandy"] = (go_term_gene_list_5503_sandy$logFC)
+go_matrix[go_term_gene_list_6007_clay$gene_id, "6007_clay"] = (go_term_gene_list_6007_clay$logFC)
+go_matrix[go_term_gene_list_6007_sandy$gene_id, "6007_sandy"] = (go_term_gene_list_6007_sandy$logFC)
+
+#Replace NA for 0
+go_matrix[is.na(go_matrix)] = 0
+
+#Build the heatmap colour palette
+myColor <- colorRampPalette(c("blue", "white", "red"))(50)
+
+myBreaks <- c(seq(min(go_matrix), 0, length.out=ceiling(50/2) + 1), 
+              seq(max(go_matrix)/50, max(go_matrix), length.out=floor(50/2)))
+
+#Recobe the gene annotation from the annotation file
+gene_name_annot = annot2 %>% #annot2 is the annotation file
+  distinct(SeqName, .keep_all = T) %>% 
+  filter(SeqName %in% go_term_gene_list_unique)
+
+gene_annot_df = data.frame(SeqName = go_term_gene_list_unique)
+
+gene_annot_df <- gene_annot_df %>%
+  left_join(gene_name_annot %>% dplyr::select(SeqName, Description), by = "SeqName")
+
+
+row.names(gene_annot_df) <- gene_annot_df$SeqName
+
+
+gene_annot_df <- gene_annot_df %>% mutate_all(na_if,"")
+
+
+#Build the heatmap column annotation
+ann_df <- data.frame( Group = c("5503_clay","5503_sandy","6007_clay","6007_sandy"))
+row.names(ann_df) <- colnames(go_matrix)
+
+ann_colors <- list(
+  Group = c("5503_clay" = "darkolivegreen",
+            "5503_sandy" = "darkolivegreen3",
+            "6007_clay" = "violetred3",
+            "6007_sandy" = "violetred1"))
+
+main =  paste0("Innoc-Control ",go_term)
+
+#Summarize by gene annotation. 
+#Gene with the same annotation are treat as one gene and the logFC is the average of the genes with the same annotation
+go_matrix2 = as.data.frame(go_matrix)
+go_matrix2$SeqName <- rownames(go_matrix2)
+
+
+go_matrix2 <- go_matrix2 %>%
+  left_join(gene_name_annot %>% dplyr::select(SeqName, Description), by = "SeqName")
+
+colnames(go_matrix2) <- c("cinco_clay","cinco_sandy","seis_clay","seis_sandy","genes","Description")
+
+go_matrix3 = go_matrix2 %>%
+  group_by(Description) %>% summarize("5503_clay" = mean(cinco_clay), 
+                                      "5503_sandy" = mean(cinco_sandy),
+                                      "6007_clay" = mean(seis_clay), 
+                                      "6007_sandy" = mean(seis_sandy))
+
+go_matrix3 = go_matrix3 %>% remove_rownames %>% column_to_rownames(var="Description")
+
+go_matrix3 = as.matrix(go_matrix3)
+go_matrix3
+
+#Build heatmap for all genes
+heatmap1 = pheatmap::pheatmap(go_matrix3, 
+                              clustering_distance_cols = 'euclidean',
+                              clustering_distance_rows = "euclidean",
+                              clustering_method_rows = "euclidean",
+                              cluster_rows = T,               # Clusterizar as linhas
+                              cluster_cols = FALSE,              # Desativar clusterização das colunas
+                              show_rownames = TRUE,              # Mostrar nomes das linhas (termos GO)
+                              show_colnames = F,              # Mostrar nomes das colunas (Up/Down)
+                              color = myColor,  # Paleta de cores
+                              border_color = "gray",            # Cor da borda das células
+                              fontsize_row = 10,                 # Tamanho da fonte das linhas
+                              fontsize_col = 10,                 # Tamanho da fonte das colunas
+                              angle_col = "0",
+                              main = main,
+                              breaks = myBreaks,
+                              annotation_col = ann_df,  # Adicionar anotações de coluna
+                              annotation_colors = ann_colors,   # Definir cores das anotações
+)
+
+heatmap1
+
+######################## Building matrix for selected genes ######################
+
+#Build matrix
+selected_genes_df = data.frame(go_matrix3)
+selected_genes_df
+
+selected_genes_matrix <- data.frame(matrix(ncol = 5, nrow = 0))
+colnames(selected_genes_matrix) <- c("","IAC-5503_clay","IAC-5503_sandy","IAC-6007_clay","IAC-6007_sandy")
+selected_genes_matrix
+
+########################## Rbinding the selected genes ##########################
+selected_genes_df = data.frame(go_matrix3)
+
+#Visualise the row index of the genes
+v <- rownames(go_matrix3)
+v
+
+#A list with the selected row index number of the selected genes
+a = c(53:61,39,20,1:3,14,13,46,52,73)
+a
+
+#'for' loop in the list of number of the selected genes
+for (i in a){
+  selected_genes_matrix <- rbind(selected_genes_matrix,selected_genes_df[i,])
+}
+selected_genes_matrix    # selected genes matrix
+
+
+#Saving result to a csv file
+write.csv(selected_genes_matrix, "gene_selected_inoc-control-0006979.csv", row.names = T)
+
+
+
+##########################################################
+
+selected_genes_matrix <- as.matrix(selected_genes_matrix)
+selected_genes_matrix
+
+go_matrix3 = selected_genes_matrix
+
+##########################################################
+
+rg <- max(abs(matrix))
+
+#Build the heatmap colour palette
+myColor <- colorRampPalette(c("blue", "white", "red"))(100)
+
+
+myBreaks <- c(seq(min(selected_genes_matrix), 0, length.out=ceiling(100/2)+1),
+              seq(max(selected_genes_matrix)/100, max(selected_genes_matrix), length.out=floor(100/2)))
+
+
+#Build the heatmap column annotation
+ann_df <- data.frame( Group = c("IAC-5503_clay","IAC-5503_sandy","IAC-6007_clay","IAC-6007_sandy"))
+row.names(ann_df) <- colnames(selected_genes_matrix)
+
+ann_colors <- list(
+  Group = c("IAC-5503_clay" = "darkolivegreen",
+            "IAC-5503_sandy" = "darkolivegreen3",
+            "IAC-6007_clay" = "violetred3",
+            "IAC-6007_sandy" = "violetred1"))    
+
+
+main =  paste0("Inoc-Control selected ", go_term )
+
+
+#Build heatmap for selected genes                                                                                                                    
+heatmap2 = pheatmap::pheatmap(go_matrix3, 
+                              clustering_distance_cols = 'euclidean',
+                              clustering_distance_rows = "euclidean",
+                              clustering_method_rows = "euclidean",,
+                              cluster_rows = T,               # Clusterizar as linhas
+                              cluster_cols = FALSE,              # Desativar clusterização das colunas
+                              show_rownames = TRUE,              # Mostrar nomes das linhas (termos GO)
+                              show_colnames = F,              # Mostrar nomes das colunas (Up/Down)
+                              color = myColor,  # Paleta de cores
+                              border_color = "gray",            # Cor da borda das células
+                              fontsize_row = 10,                 # Tamanho da fonte das linhas
+                              fontsize_col = 10,                 # Tamanho da fonte das colunas
+                              angle_col = "0",
+                              main = main,
+                              breaks = myBreaks,
+                              annotation_col = ann_df,  # Adicionar anotações de coluna
+                              annotation_colors = ann_colors,   # Definir cores das anotações
+                             
+)
+
+heatmap2
 
 
