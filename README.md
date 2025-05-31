@@ -260,10 +260,6 @@ Packages versions :
 **SAMtools: 1.20**; 
 **featureCounts** (parte do pacote subread): **2.0.6**; 
 
-
-
-```
-
 ### Executing the Script with Screen ###
 ```
 screen -S hisat2_alignment
@@ -578,6 +574,8 @@ write.table(DEGs_LogFC, file = filename, row.names=FALSE, sep = "\t")
 ```
 ## FOR GO TERMS ANALYSIS - WITH TOP2GO
 # Load packages
+
+```
 library("tidyr")
 library("dplyr")
 library("stringr")
@@ -585,9 +583,11 @@ library("stringr")
 #seting working directory
 setwd("working/directory/path")
 
+```
 
-############################# Preparing Gene2GO file ##############################
+### Preparing Gene2GO file
 
+```
 #Reading the annotation file from Blast2GO containing the gene IDs and GO terms
 annot2 <- read.csv("annotation file/path/", header = T, sep = '\t')
 annot2$SeqName <- sub("\\.1\\.p$", "", annot2$SeqName) 
@@ -620,11 +620,12 @@ head(long_gene2GO, 10)
 gene2GO <- tapply(long_gene2GO$GO, long_gene2GO$Gene, function(x)x)
 head(gene2GO, 10)
 
+```
 
 ## Prepating DEGs and TopGO analysis
 
-############################# Load packages##################################
-
+```
+Load packages
 library("topGO")  
 library("tidyr")
 library("dplyr")
@@ -637,17 +638,22 @@ library("svDialogs")
 #seting working directory
 setwd("working/directory/path")
 
+``` 
+Choose input 
 
-############################## Choose input ################################
-# Choose data to analyse
-# data name
+```
+#Choose data to analyse
+#data name
 name = 'DEGs_IACSP-6007_sandy_inoc-control'
 
 #Load csv to be analysed
 DESeq2_results <- read.csv(paste0(name,".csv"), sep = "\t")
 
-############################# Preparing DEGs ################################
+```
 
+### Preparing DEGs 
+
+```
 head(DESeq2_results, 10)
 
 
@@ -782,9 +788,11 @@ allRes_down <- GenTable(GOdata_down_6007_sandy, p.value = resultFisher_down_w,
 #Saving result to a csv file
 write.csv(allRes_down, paste0("topGO_enrichment_",name,"-down_unfiltered",".csv"), row.names = F)
 
+```
 
 ## Bubble plot
 
+```
 library(tidyverse)
 library(dplyr)
 library("viridis")      
@@ -846,7 +854,11 @@ bubblue_plot1
 
 ggsave(filename = "gos_bubble.png", device = "png", plot = bubblue_plot1, width = 18, height = 18)
 
+```
+
 ## Heatmap plot
+
+```
 library(tidyverse)
 library(dplyr)
 library("RColorBrewer")
@@ -1205,4 +1217,4 @@ heatmap2 = pheatmap::pheatmap(go_matrix3,
 
 heatmap2
 
-
+```
