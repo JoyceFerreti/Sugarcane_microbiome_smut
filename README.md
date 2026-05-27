@@ -431,144 +431,201 @@ The script performs differential gene expression analysis using RNA-Seq data wit
 library(dplyr)
 library(edgeR)
 
-#Load count table; Loads an RNA-Seq count table, using the Geneid column as a row identifier.
-count_table <- read.table("/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Cutadapt_alignment_input/EdgeR/Joyce_edgeR/Quantified_all_R570_genome_ShSHN_ref.tsv", header = TRUE, row.names = "Geneid")
-#Stores the length of genes and removes unnecessary columns from the count table.
-gene_length <- count_table[,5]
+# Load count table
+count_table <- read.table(
+  "C:/Users/joyde/OneDrive/Área de Trabalho/Desktop NIOO/RNAseq/EdgeR/Quantified_all_R570_genome_ShSHN_ref.tsv",
+  header = TRUE,
+  row.names = "Geneid",
+  check.names = FALSE
+)
+
+# Store gene length and remove annotation columns
+gene_length <- count_table[, 5]
 names(gene_length) <- rownames(count_table)
+
 count_table <- count_table[, -(1:5)]
 
-#Load correspondance file
-correspondence <- read.table("/home/nioo/joycef/Sugarcane_microbiome_rnaSeq/Data/Cutadapt_alignment_input/EdgeR/Joyce_edgeR/samples.txt", header = FALSE)
+# Load correspondence file
+correspondence <- read.table(
+  "C:/Users/joyde/OneDrive/Área de Trabalho/Desktop NIOO/RNAseq/EdgeR/samples_sscifree.txt",
+  header = FALSE,
+  sep = "\t",
+  stringsAsFactors = FALSE
+)
 
-#Load correspondence table
-###This way its ensured that the names of the samples and sequencing filenames matches, and its not just a mistake regarding the column order
 colnames(correspondence) <- c("old_name", "new_name")
 
-#Create a mapping between old and new column names
+# Create name mapping
 mapping <- setNames(correspondence$new_name, correspondence$old_name)
 
-#Process column names
-new_names <- sapply(colnames(count_table), function(column) {
-  sub(".*\\.([^_]+_\\d+_S\\d+_L\\d+)_cut_PE1\\.fastq\\.gz.*", "\\1", column)
-})
-colnames(count_table) <- new_names
+# Fix count table column names so they match the correspondence file
+old_colnames <- basename(colnames(count_table))
+old_colnames <- sub("_R570mapped\\.bam$", "", old_colnames)
 
-#Rename columns based on the mapping - Renames the count table columns using the provided name mapping.
-colnames(count_table) <- sapply(colnames(count_table), function(old_name) {
-  if (old_name %in% names(mapping)) {
-    return(mapping[old_name])
-  } else {
-    return(old_name)
-  }
-})
+# Rename columns using correspondence file
+new_colnames <- mapping[old_colnames]
 
-#Sort columns
-count_table <- count_table %>%
-  select(sort(colnames(count_table)))
+# Stop if some columns were not found in the correspondence file
+if (any(is.na(new_colnames))) {
+  cat("Columns not found in correspondence file:\n")
+  print(old_colnames[is.na(new_colnames)])
+  stop("Some count table columns could not be renamed.")
+}
 
-## Data Filtering and Normalization
-### Para comparação par a par, selecionando apenas o inoculado e controle para a comparação
-comparison <- c("IACSP_5503_sandy_inoc", "IACSP_5503_sandy_control")
-#Select columns containing the base names
-count_table <- count_table %>%
-  select(contains(comparison))
+colnames(count_table) <- unname(new_colnames)
 
+# Pairwise comparison
+comparison <- c("IACSP-6007_clay_inoc", "IACSP-6007_clay_control")
 
-#Repeat each base name three times for te strain object
-strain <- c("inoc", "inoc", "inoc", "control", "control", "control")
-sample_info <- data.frame(condition = factor(strain))
+# Select only samples from this comparison
+selected_cols <- grep(
+  paste0("^(", paste(comparison, collapse = "|"), ")[0-9]+$"),
+  colnames(count_table),
+  value = TRUE
+)
+
+print(selected_cols)
+
+count_table <- count_table[, selected_cols]
+
+# Check selected samples
+print(ncol(count_table))
+print(colnames(count_table))
+
+# Stop if expected number of samples was not selected
+if (ncol(count_table) != 6) {
+  stop("Expected 6 samples: 3 inoc and 3 control. Check selected column names.")
+}
+
+# Create sample information automatically from column names
+sample_info <- data.frame(
+  condition = case_when(
+    grepl("_control[0-9]+$", colnames(count_table)) ~ "control",
+    grepl("_inoc[0-9]+$", colnames(count_table)) ~ "inoc",
+    TRUE ~ NA_character_
+  )
+)
+
 rownames(sample_info) <- colnames(count_table)
-group <- factor(paste(strain))
 
+# Convert condition to factor, with control as reference
+sample_info$condition <- factor(
+  sample_info$condition,
+  levels = c("control", "inoc")
+)
 
-### Follow the EdgeR analysis
-library("edgeR")
+# Check final metadata
+print(sample_info)
+
+##EdgeR
+group <- sample_info$condition
 
 y <- DGEList(counts = count_table, group = group)
 cpms <- cpm(y)
 
-#chatGPT automatization expression filtering
-#filter if any samples triplicate has more than three cpms in the row sum
-filter_criteria <- function(row, step = 3) {
-  num_cols <- length(row)
-  indices <- seq(1, num_cols, by = step)
-  
-  any(sapply(indices, function(i) all(row[i:(i + step - 1)] >= 1)))
+# Filter genes expressed with CPM >= 1 in all 3 replicates of at least one group
+filter_criteria <- function(row, group) {
+  any(tapply(row, group, function(x) all(x >= 1)))
 }
 
-#Apply the function to check each gene.
-keep <- sapply(1:nrow(cpms), function(i) {
-  filter_criteria(cpms[i, ])
-})
+keep <- apply(cpms, 1, filter_criteria, group = group)
 
-#keep <- rowSums(cpms > 1) >= 3 ### Filter to be considered expressed.
 y <- y[keep, , keep.lib.sizes = FALSE]
 y <- calcNormFactors(y)
 
-#MDS is only based on the top 500 genes... maybe using more it can look really different
-plotMDS(y, col = c("blue", "blue", "blue",
-                   "red", "red", "red"))
+# MDS plot
+plotMDS(
+  y,
+  col = ifelse(group == "control", "blue", "red")
+)
 
-### Experimental Design ###
-design <- model.matrix(~ 0 + group, data = y$samples)
-colnames(design) <- levels(y$samples$group)
+# Experimental design
+design <- model.matrix(~ 0 + group)
+colnames(design) <- levels(group)
+
 y <- estimateDisp(y, design, robust = TRUE)
+
 plotBCV(y)
-y$design
 
-### Export the table with normalized counts (cpm_tmm)
-filename <- "IACSP_5503_sandy_inoc-control.csv"
-cpms_with_gene_id <- cbind(gene_id = rownames(cpm(y)), cpm(y))
-write.table(file=filename, cpms_with_gene_id, sep='\t', row.names=FALSE)
+# Export normalized counts
+cpm_tmm <- cpm(y, normalized.lib.sizes = TRUE)
 
-### Até aqui, temos apenas os count normalizados (cpm) sem atribuição de diferencialmente expressos
+cpms_with_gene_id <- cbind(
+  gene_id = rownames(cpm_tmm),
+  cpm_tmm
+)
 
+filename <- "CPM_TMM_IACSP-6007_clay_inoc-vs-control.tsv"
 
-### Aplicar teste para a expressão diferencial
-### Likelihood Ratio Test (LRT) for Differential Expression Testing ###
-fit <- glmFit(y, design, robust = TRUE)
-#We can change the contrast to be tested
-my.contrast <- makeContrasts("inoc - control", levels = design)
+write.table(
+  cpms_with_gene_id,
+  file = filename,
+  sep = "\t",
+  row.names = FALSE,
+  quote = FALSE
+)
+
+# Differential expression test
+fit <- glmFit(y, design)
+
+my.contrast <- makeContrasts(inoc - control, levels = design)
+
 lrt <- glmLRT(fit, contrast = my.contrast)
+
 topTags(lrt)
-#### With FDR
-DE <- decideTests(lrt, adjust.method = "BH", p.value = 0.05, lfc = 1)
+
+# DEG decision with FDR <= 0.05 and absolute logFC >= 1
+DE <- decideTests(
+  lrt,
+  adjust.method = "BH",
+  p.value = 0.05,
+  lfc = 1
+)
+
 summary(DE)
 
 DE_tags <- rownames(y)[as.logical(DE)]
-#MAplot
-plotSmear(lrt, de.tags=DE_tags, cex = 0.3)
-abline(h=c(-1, 1), col="blue")
 
-### Export table with genes considered expressed (undergo filtering by minimum CPM in a certain number of samples)
+# MA plot
+plotSmear(lrt, de.tags = DE_tags, cex = 0.3)
+abline(h = c(-1, 1), col = "blue")
 
-### there must be a better way to export the tables!
+# Export all expressed genes with statistics
+top_tags <- topTags(lrt, n = Inf)
 
-#Apply the topTags() function to obtain the results.
-top_tags <- topTags(lrt, n = (nrow(y$counts) + 1))
-#Add the gene IDs as the first column.
-results_with_gene_id <- cbind(gene_id = rownames(top_tags$table), top_tags$table)
-#Export the results to a CSV file.
-filename <- "Expressed_IACSP-5503_inoc-control.csv"
-write.table(results_with_gene_id, file = filename, sep = '\t', row.names = FALSE) #maybe just set to TRUE, and don't need to cbind the gene_names
+results_with_gene_id <- cbind(
+  gene_id = rownames(top_tags$table),
+  top_tags$table
+)
 
+filename <- "Expressed_IACSP-6007_clay_inoc-vs-control.tsv"
 
-#Export the table with the DEGs (Differentially Expressed Genes).
+write.table(
+  results_with_gene_id,
+  file = filename,
+  sep = "\t",
+  row.names = FALSE,
+  quote = FALSE
+)
+
+# Export only DEGs
 threshold <- 0.05
-#column 6:FDR, column 5:Pvalue
-DEGs <- results_with_gene_id[results_with_gene_id[, 6] < threshold, ]
-#Set a cutoff value for the absolute LogFC (Logarithm of the Fold Change).
 logFC_threshold <- 1
-#Calculate the absolute value of the LogFC (Logarithm of the Fold Change).
-DEGs$absLogFC <- abs(DEGs[, 2])
-#Filter the DEGs based on the absolute value of the LogFC (Logarithm of the Fold Change).
-DEGs_LogFC <- DEGs[DEGs$absLogFC >= logFC_threshold, ]
-#Remove the temporary column 'absLogFC'.
-DEGs_LogFC <- DEGs_LogFC[, -ncol(DEGs_LogFC)]
 
-filename <- "DEGs_IACSP-5503_inoc-control.csv"
-write.table(DEGs_LogFC, file = filename, row.names=FALSE, sep = "\t")
+DEGs_LogFC <- results_with_gene_id[
+  results_with_gene_id$FDR < threshold &
+    abs(results_with_gene_id$logFC) >= logFC_threshold,
+]
+
+filename <- "DEGs_IACSP-6007_clay_inoc-vs-control.tsv"
+
+write.table(
+  DEGs_LogFC,
+  file = filename,
+  sep = "\t",
+  row.names = FALSE,
+  quote = FALSE
+)
 
 
 ```
