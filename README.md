@@ -1275,3 +1275,597 @@ heatmap2 = pheatmap::pheatmap(go_matrix3,
 heatmap2
 
 ```
+
+### Plots: Heatmap With Expressed Genes
+
+```
+rm(list = ls())
+options(stringsAsFactors = FALSE)
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(dplyr)
+  library(tidyr)
+  library(tibble)
+  library(stringr)
+  library(pheatmap)
+  library(grid)
+})
+
+project_dir <- normalizePath(".", winslash = "/", mustWork = TRUE)
+setwd(project_dir)
+
+# -----------------------------------------------------------------------------
+# PURPOSE
+# -----------------------------------------------------------------------------
+# Rebuild the selected heatmaps in the same pheatmap style used before, but now
+# filling the matrix with logFC values from ALL treatments for the same selected
+# genes/descriptions.
+#
+# Selection logic:
+# - the old gene_selected_inoc-control-*.csv files define which rows appear
+#   and in which order
+# - the values are reloaded from the full Expressed_* tables
+#
+# Differential-expression direction:
+#   logFC = inoculated - control
+#   logFC > 0  -> higher in inoculated
+#   logFC < 0  -> higher in control
+
+# -----------------------------------------------------------------------------
+# USER SETTINGS
+# -----------------------------------------------------------------------------
+selected_files_pattern <- "^gene_selected_inoc-control-[0-9]+\\.csv$"
+
+contrast_metadata <- tibble::tribble(
+  ~contrast_id,   ~file_name,                                      ~soil,   ~genotype,
+  "5503_clay",    "C:/Users/joyde/OneDrive/Área de Trabalho/Desktop NIOO/RNAseq/4EdgeR/INOC-CONTROL/IACSP-5503_CLAY/Expressed_IACSP-5503_clay_inoc-control.csv", "clay",  "IACSP-5503",
+  "5503_sandy",   "C:/Users/joyde/OneDrive/Área de Trabalho/Desktop NIOO/RNAseq/4EdgeR/INOC-CONTROL/IACSP-5503_SANDY/Expressed_IACSP-5503_inoc-control.csv", "sandy", "IACSP-5503",
+  "6007_clay",    "C:/Users/joyde/OneDrive/Área de Trabalho/Desktop NIOO/RNAseq/4EdgeR/INOC-CONTROL/IACSP-6007_CLAY/Expressed_IACSP-6007_clay_inoc-vs-control.tsv", "clay",  "IACSP-6007",
+  "6007_sandy",   "C:/Users/joyde/OneDrive/Área de Trabalho/Desktop NIOO/RNAseq/4EdgeR/INOC-CONTROL/IACSP-6007_SANDY/Expressed_IACSP-6007_sandy_inoc-control.csv", "sandy", "IACSP-6007"
+)
+
+column_order <- c("5503_clay", "5503_sandy", "6007_clay", "6007_sandy")
+
+soil_colors <- c(clay = "#22C7D5", sandy = "#9AD500")
+genotype_colors <- c("IACSP-5503" = "#B77AF5", "IACSP-6007" = "#FF8D8A")
+
+cluster_rows <- TRUE
+cluster_cols <- TRUE
+show_colnames <- FALSE
+show_rownames <- TRUE
+fontsize_row <- 9
+fontsize_col <- 9
+cellwidth <- 26
+cellheight <- 16
+border_color <- "grey88"
+na_color <- "grey95"
+
+color_limits <- c(-1.5, 1.5)
+palette_n <- 100
+
+output_dir <- file.path(project_dir, "selected_terms_all_treatments_outputs")
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(output_dir, "png"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(output_dir, "pdf"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(output_dir, "tables"), recursive = TRUE, showWarnings = FALSE)
+
+# -----------------------------------------------------------------------------
+# HELPERS
+# -----------------------------------------------------------------------------
+guess_delim <- function(path) {
+  first_line <- readLines(path, n = 1, warn = FALSE, encoding = "UTF-8")
+  counts <- c(
+    "," = stringr::str_count(first_line, ","),
+    ";" = stringr::str_count(first_line, ";"),
+    "\t" = stringr::str_count(first_line, "\t")
+  )
+  names(which.max(counts))
+}
+
+read_table_auto <- function(path) {
+  readr::read_delim(
+    path,
+    delim = guess_delim(path),
+    show_col_types = FALSE,
+    trim_ws = TRUE
+  )
+}
+
+sanitize_go_id <- function(go_id) {
+  stringr::str_replace_all(go_id, "[: ]", "")
+}
+
+normalize_description <- function(x) {
+  x %>%
+    stringr::str_to_lower() %>%
+    stringr::str_replace_all("[;,]", " ") %>%
+    stringr::str_replace_all("\\s+", " ") %>%
+    stringr::str_trim()
+}
+
+discover_selected_files <- function() {
+  files <- list.files(
+    path = project_dir,
+    pattern = selected_files_pattern,
+    full.names = TRUE
+  )
+
+  if (length(files) == 0) {
+    stop("No selected-gene files found with pattern: ", selected_files_pattern)
+  }
+
+  files
+}
+
+parse_go_dictionary <- function(annotation_file) {
+  ann <- read_table_auto(annotation_file)
+
+  ann %>%
+    transmute(
+      go_ids = as.character(`GO IDs`),
+      go_names = as.character(`GO Names`)
+    ) %>%
+    filter(!is.na(go_ids), go_ids != "", !is.na(go_names), go_names != "") %>%
+    separate_rows(go_ids, go_names, sep = ";") %>%
+    mutate(
+      go_ids = stringr::str_trim(go_ids),
+      go_names = stringr::str_trim(go_names),
+      go_ids = stringr::str_remove(go_ids, "^[PCF]:"),
+      go_names = stringr::str_remove(go_names, "^[PCF]:")
+    ) %>%
+    filter(go_ids != "", go_names != "") %>%
+    group_by(go_ids, go_names) %>%
+    summarise(n = dplyr::n(), .groups = "drop") %>%
+    arrange(go_ids, desc(n), go_names) %>%
+    group_by(go_ids) %>%
+    slice_head(n = 1) %>%
+    ungroup() %>%
+    transmute(go_id = go_ids, go_name = go_names)
+}
+
+load_annotation_table <- function(annotation_file) {
+  ann <- read_table_auto(annotation_file)
+
+  required_cols <- c("SeqName", "Description", "GO IDs")
+  missing_cols <- setdiff(required_cols, colnames(ann))
+  if (length(missing_cols) > 0) {
+    stop("Missing annotation columns: ", paste(missing_cols, collapse = ", "))
+  }
+
+  ann %>%
+    transmute(
+      gene_id = sub("\\.1\\.p$", "", SeqName),
+      Description = as.character(Description),
+      GO_IDs = as.character(`GO IDs`)
+    ) %>%
+    distinct(gene_id, .keep_all = TRUE)
+}
+
+read_expressed_table <- function(path, contrast_id) {
+  df <- read_table_auto(path)
+
+  required_cols <- c("gene_id", "logFC", "FDR")
+  missing_cols <- setdiff(required_cols, colnames(df))
+  if (length(missing_cols) > 0) {
+    stop("Missing columns in ", basename(path), ": ", paste(missing_cols, collapse = ", "))
+  }
+
+   df <- df %>%
+    mutate(
+      logFC = as.numeric(logFC),
+      FDR = as.numeric(FDR)
+    )
+
+  # Sanity checks to catch corrupted exports before plotting.
+  if (any(!is.na(df$FDR) & (df$FDR < 0 | df$FDR > 1))) {
+    stop("Invalid FDR values detected in ", basename(path), ". The file may be corrupted.")
+  }
+
+  if ("PValue" %in% colnames(df)) {
+    df <- df %>% mutate(PValue = as.numeric(PValue))
+    if (any(!is.na(df$PValue) & (df$PValue < 0 | df$PValue > 1))) {
+      stop("Invalid PValue values detected in ", basename(path), ". The file may be corrupted.")
+    }
+  }
+
+  if (any(!is.na(df$logFC) & abs(df$logFC) > 50)) {
+    stop("Unusually large |logFC| values detected in ", basename(path), ". The file may be corrupted.")
+  }
+
+  df %>%
+    transmute(
+      gene_id = sub("\\.v2\\.1$", "", gene_id),
+      logFC = logFC,
+      FDR = FDR,
+      is_sig = !is.na(FDR) & FDR <= 0.05,
+      contrast_id = contrast_id
+    )
+}
+
+load_all_expressed_long <- function(annotation_df) {
+  purrr::map2_dfr(
+    contrast_metadata$file_name,
+    contrast_metadata$contrast_id,
+    ~ read_expressed_table(
+      if (grepl("^[A-Za-z]:[/\\\\]", .x)) .x else file.path(project_dir, .x),
+      .y
+    )
+  ) %>%
+    left_join(annotation_df, by = "gene_id") %>%
+    left_join(contrast_metadata, by = "contrast_id")
+}
+
+read_selected_row_order <- function(selected_file) {
+  delim <- guess_delim(selected_file)
+
+  if (delim == ";") {
+    lines <- readLines(selected_file, warn = FALSE, encoding = "UTF-8")
+    if (length(lines) <= 1) {
+      return(character(0))
+    }
+
+    row_lab <- vapply(lines[-1], function(line) {
+      parts <- strsplit(line, ";", fixed = TRUE)[[1]]
+
+      while (length(parts) > 0 && parts[length(parts)] == "") {
+        parts <- parts[-length(parts)]
+      }
+
+      if (length(parts) <= 4) {
+        return(NA_character_)
+      }
+
+      desc <- paste(parts[seq_len(length(parts) - 4)], collapse = ";")
+      desc <- stringr::str_trim(desc)
+      desc <- stringr::str_remove(desc, '^"')
+      desc <- stringr::str_remove(desc, '"$')
+      desc
+    }, character(1))
+
+    row_lab <- row_lab[!is.na(row_lab) & row_lab != ""]
+    return(unique(as.character(row_lab)))
+  }
+
+  df <- read.csv(
+    selected_file,
+    header = TRUE,
+    check.names = FALSE,
+    stringsAsFactors = FALSE
+  )
+
+  row_lab <- df[[1]]
+  row_lab <- row_lab[!is.na(row_lab) & row_lab != ""]
+  as.character(row_lab)
+}
+
+extract_go_gene_ids <- function(annotation_df, go_id_current) {
+  annotation_df %>%
+    filter(!is.na(GO_IDs), GO_IDs != "") %>%
+    tidyr::separate_rows(GO_IDs, sep = ";") %>%
+    mutate(
+      GO_IDs = stringr::str_trim(GO_IDs),
+      GO_IDs = stringr::str_remove(GO_IDs, "^[PCF]:")
+    ) %>%
+    filter(GO_IDs == go_id_current) %>%
+    distinct(gene_id) %>%
+    pull(gene_id)
+}
+
+rebuild_matrices_for_selected_rows <- function(selected_rows, expressed_long) {
+  selected_df <- tibble(
+    Description = selected_rows,
+    norm_description = normalize_description(selected_rows),
+    row_id = make.unique(selected_rows, sep = "___dup")
+  )
+
+  summarized <- expressed_long %>%
+    filter(
+      !is.na(Description),
+      normalize_description(Description) %in% selected_df$norm_description
+    ) %>%
+    mutate(norm_description = normalize_description(Description)) %>%
+    filter(norm_description %in% selected_df$norm_description) %>%
+    group_by(norm_description, contrast_id) %>%
+    summarise(
+      logFC = mean(logFC, na.rm = TRUE),
+      is_sig = any(is_sig, na.rm = TRUE),
+      n_gene_ids = dplyr::n_distinct(gene_id),
+      .groups = "drop"
+    ) %>%
+    mutate(logFC = ifelse(is.nan(logFC), NA_real_, logFC))
+
+  full_df <- tidyr::expand_grid(
+    row_id = selected_df$row_id,
+    contrast_id = column_order
+  ) %>%
+    left_join(selected_df, by = "row_id") %>%
+    left_join(summarized, by = c("norm_description", "contrast_id"))
+
+  mat_df <- full_df %>%
+    select(row_id, contrast_id, logFC) %>%
+    pivot_wider(names_from = contrast_id, values_from = logFC) %>%
+    as.data.frame(stringsAsFactors = FALSE)
+
+  rownames(mat_df) <- mat_df$row_id
+  mat_df$row_id <- NULL
+  mat_df <- mat_df[, column_order, drop = FALSE]
+  mat_df[] <- lapply(mat_df, as.numeric)
+
+  mat <- as.matrix(mat_df)
+  storage.mode(mat) <- "numeric"
+
+  sig_df <- full_df %>%
+    select(row_id, contrast_id, is_sig) %>%
+    mutate(is_sig = ifelse(is.na(is_sig), FALSE, is_sig)) %>%
+    pivot_wider(names_from = contrast_id, values_from = is_sig) %>%
+    as.data.frame(stringsAsFactors = FALSE)
+
+  rownames(sig_df) <- sig_df$row_id
+  sig_df$row_id <- NULL
+  sig_df <- sig_df[, column_order, drop = FALSE]
+  sig_df[] <- lapply(sig_df, as.logical)
+
+  sig_mat <- as.matrix(sig_df)
+  storage.mode(sig_mat) <- "logical"
+
+  list(
+    logfc_mat = mat[selected_df$row_id, column_order, drop = FALSE],
+    sig_mat = sig_mat[selected_df$row_id, column_order, drop = FALSE],
+    row_labels = selected_df$Description
+  )
+}
+
+build_annotation_col <- function() {
+  ann_col <- contrast_metadata %>%
+    select(contrast_id, soil, genotype) %>%
+    as.data.frame(stringsAsFactors = FALSE)
+
+  rownames(ann_col) <- ann_col$contrast_id
+  ann_col$contrast_id <- NULL
+  ann_col[column_order, , drop = FALSE]
+}
+
+build_breaks <- function() {
+  c(
+    seq(color_limits[1], 0, length.out = ceiling(palette_n / 2) + 1),
+    seq(color_limits[2] / palette_n, color_limits[2], length.out = floor(palette_n / 2))
+  )
+}
+
+build_safe_hclust <- function(mat, margin = c("row", "col"), method = "complete") {
+  margin <- match.arg(margin)
+  mat2 <- mat
+
+  if (!is.matrix(mat2)) {
+    mat2 <- as.matrix(mat2)
+  }
+
+  storage.mode(mat2) <- "numeric"
+
+  if (margin == "row") {
+    if (nrow(mat2) < 2) {
+      return(FALSE)
+    }
+
+    row_means <- apply(mat2, 1, function(x) {
+      if (all(is.na(x))) 0 else mean(x, na.rm = TRUE)
+    })
+
+    for (i in seq_len(nrow(mat2))) {
+      idx <- is.na(mat2[i, ])
+      if (any(idx)) {
+        mat2[i, idx] <- row_means[i]
+      }
+    }
+
+    return(hclust(dist(mat2), method = method))
+  }
+
+  if (ncol(mat2) < 2) {
+    return(FALSE)
+  }
+
+  col_means <- apply(mat2, 2, function(x) {
+    if (all(is.na(x))) 0 else mean(x, na.rm = TRUE)
+  })
+
+  for (j in seq_len(ncol(mat2))) {
+    idx <- is.na(mat2[, j])
+    if (any(idx)) {
+      mat2[idx, j] <- col_means[j]
+    }
+  }
+
+  hclust(dist(t(mat2)), method = method)
+}
+
+draw_one_heatmap <- function(logfc_mat, sig_mat, row_labels, go_id, go_name, output_png, output_pdf) {
+  if (!is.matrix(logfc_mat)) {
+    logfc_mat <- as.matrix(logfc_mat)
+  }
+  storage.mode(logfc_mat) <- "numeric"
+
+  display_numbers <- matrix("", nrow = nrow(sig_mat), ncol = ncol(sig_mat))
+  display_numbers[sig_mat] <- "*"
+  rownames(display_numbers) <- rownames(sig_mat)
+  colnames(display_numbers) <- colnames(sig_mat)
+
+  ann_col <- build_annotation_col()
+  ann_colors <- list(
+    soil = soil_colors,
+    genotype = genotype_colors
+  )
+
+  myColor <- colorRampPalette(c("blue", "white", "red"))(palette_n)
+  myBreaks <- build_breaks()
+
+  row_cluster_obj <- if (isTRUE(cluster_rows)) {
+    build_safe_hclust(logfc_mat, margin = "row", method = "complete")
+  } else {
+    FALSE
+  }
+
+  col_cluster_obj <- if (isTRUE(cluster_cols)) {
+    build_safe_hclust(logfc_mat, margin = "col", method = "complete")
+  } else {
+    FALSE
+  }
+
+  title_text <- paste0(go_id, ' - "', go_name, '"')
+
+  png(
+    filename = output_png,
+    width = 3200,
+    height = max(2200, 1200 + nrow(logfc_mat) * 45),
+    res = 300,
+    bg = "white"
+  )
+  pheatmap::pheatmap(
+    mat = logfc_mat,
+    cluster_rows = row_cluster_obj,
+    cluster_cols = col_cluster_obj,
+    show_rownames = show_rownames,
+    show_colnames = show_colnames,
+    color = myColor,
+    border_color = border_color,
+    fontsize_row = fontsize_row,
+    fontsize_col = fontsize_col,
+    angle_col = 0,
+    main = title_text,
+    breaks = myBreaks,
+    annotation_col = ann_col,
+    annotation_colors = ann_colors,
+    na_col = na_color,
+    labels_row = row_labels,
+    display_numbers = display_numbers,
+    number_color = "black",
+    fontsize_number = 11,
+    cellwidth = cellwidth,
+    cellheight = cellheight,
+    silent = FALSE
+  )
+  grid.text(
+    "* = significant DEG | logFC = inoculated - control",
+    x = 0.98, y = 0.02, just = c("right", "bottom"),
+    gp = gpar(fontsize = 10)
+  )
+  dev.off()
+
+  pdf(
+    file = output_pdf,
+    width = 10.5,
+    height = max(7, 3 + nrow(logfc_mat) * 0.18),
+    bg = "white",
+    useDingbats = FALSE
+  )
+  pheatmap::pheatmap(
+    mat = logfc_mat,
+    cluster_rows = row_cluster_obj,
+    cluster_cols = col_cluster_obj,
+    show_rownames = show_rownames,
+    show_colnames = show_colnames,
+    color = myColor,
+    border_color = border_color,
+    fontsize_row = fontsize_row,
+    fontsize_col = fontsize_col,
+    angle_col = 0,
+    main = title_text,
+    breaks = myBreaks,
+    annotation_col = ann_col,
+    annotation_colors = ann_colors,
+    na_col = na_color,
+    labels_row = row_labels,
+    display_numbers = display_numbers,
+    number_color = "black",
+    fontsize_number = 11,
+    cellwidth = cellwidth,
+    cellheight = cellheight,
+    silent = FALSE
+  )
+  grid.text(
+    "* = significant DEG | logFC = inoculated - control",
+    x = 0.98, y = 0.02, just = c("right", "bottom"),
+    gp = gpar(fontsize = 10)
+  )
+  dev.off()
+}
+
+# -----------------------------------------------------------------------------
+# MAIN
+# -----------------------------------------------------------------------------
+annotation_file <- file.path(project_dir, "omicsbox_table_all_proteins.txt")
+annotation_df <- load_annotation_table(annotation_file)
+expressed_long <- load_all_expressed_long(annotation_df)
+selected_files <- discover_selected_files()
+go_dictionary <- parse_go_dictionary(annotation_file)
+
+summary_rows <- lapply(selected_files, function(selected_file) {
+  go_num <- stringr::str_extract(basename(selected_file), "[0-9]+")
+  go_id_current <- paste0("GO:", go_num)
+
+  go_name <- go_dictionary %>%
+    filter(go_id == go_id_current) %>%
+    pull(go_name)
+
+  if (length(go_name) == 0) {
+    go_name <- go_id_current
+  } else {
+    go_name <- go_name[1]
+  }
+
+  selected_rows <- read_selected_row_order(selected_file)
+  mats <- rebuild_matrices_for_selected_rows(selected_rows, expressed_long)
+
+  safe_go <- sanitize_go_id(go_id_current)
+
+  write.csv(
+    data.frame(row_id = rownames(mats$logfc_mat), Description = mats$row_labels, mats$logfc_mat, check.names = FALSE),
+    file = file.path(output_dir, "tables", paste0("heatmap_matrix_", safe_go, ".csv")),
+    row.names = FALSE
+  )
+  write.csv(
+    data.frame(row_id = rownames(mats$sig_mat), Description = mats$row_labels, mats$sig_mat, check.names = FALSE),
+    file = file.path(output_dir, "tables", paste0("significance_matrix_", safe_go, ".csv")),
+    row.names = FALSE
+  )
+
+  draw_one_heatmap(
+    logfc_mat = mats$logfc_mat,
+    sig_mat = mats$sig_mat,
+    row_labels = mats$row_labels,
+    go_id = go_id_current,
+    go_name = go_name,
+    output_png = file.path(output_dir, "png", paste0("heatmap_", safe_go, ".png")),
+    output_pdf = file.path(output_dir, "pdf", paste0("heatmap_", safe_go, ".pdf"))
+  )
+
+    tibble(
+      go_id = go_id_current,
+      go_name = go_name,
+      n_rows = nrow(mats$logfc_mat),
+      source_file = basename(selected_file),
+      status = "ok"
+    )
+})
+
+summary_df <- bind_rows(summary_rows)
+write_csv(summary_df, file.path(output_dir, "heatmap_summary.csv"))
+
+writeLines(
+  c(
+    "Methodology",
+    "1. Existing gene_selected_inoc-control-*.csv files were used only to define row selection and row order.",
+    "2. logFC values were reloaded from the full Expressed_* treatment tables.",
+    "3. The same selected genes/descriptions are shown, but all treatments are filled when values exist.",
+    "4. logFC direction is preserved as inoculated - control.",
+    "5. Positive values indicate higher expression in inoculated plants.",
+    "6. Negative values indicate higher expression in control plants."
+  ),
+  con = file.path(output_dir, "methodology.txt")
+)
+
+message("Selected-term heatmaps with all treatments were generated.")
+
+```
+
